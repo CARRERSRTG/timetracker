@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   computePay, weekStartISO, weekEndISO, addWeeks, weekLabel, fmtClock, fmtHM, syncAppSettings,
+  periodStartISO, periodEndISO, addPeriod, periodLabel,
 } from './helpers.js';
 
 // pin timezone + week start so date math is deterministic
@@ -66,6 +67,34 @@ describe('week math (Saturday start, UTC)', () => {
   });
   it('labels the week range', () => {
     expect(weekLabel('2026-07-04')).toBe('Jul 04 – Jul 10, 2026');
+  });
+});
+
+describe('pay periods', () => {
+  it('weekly period equals the week', () => {
+    expect(periodStartISO('2026-07-07', 'weekly')).toBe('2026-07-04');
+    expect(periodEndISO('2026-07-04', 'weekly')).toBe('2026-07-10');
+  });
+  it('monthly spans the calendar month', () => {
+    expect(periodStartISO('2026-07-07', 'monthly')).toBe('2026-07-01');
+    expect(periodEndISO('2026-07-01', 'monthly')).toBe('2026-07-31');
+    expect(periodStartISO('2026-02-15', 'monthly')).toBe('2026-02-01');
+    expect(periodEndISO('2026-02-01', 'monthly')).toBe('2026-02-28');
+    expect(periodLabel('2026-07-01', 'monthly')).toBe('July 2026');
+  });
+  it('biweekly block is 14 days (end = start + 13) and Saturday-aligned', () => {
+    const p = periodStartISO('2026-07-07', 'biweekly');
+    expect(weekStartISO(p)).toBe(p); // starts on a week boundary (Saturday)
+    const [sy, sm, sd] = p.split('-').map(Number);
+    const [ey, em, ed] = periodEndISO(p, 'biweekly').split('-').map(Number);
+    const days = Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd)) / 86400000);
+    expect(days).toBe(13);
+  });
+  it('addPeriod moves by the right span', () => {
+    expect(addPeriod('2026-07-04', 1, 'weekly')).toBe('2026-07-11');
+    expect(addPeriod('2026-07-04', 1, 'biweekly')).toBe('2026-07-18');
+    expect(addPeriod('2026-07-01', 1, 'monthly')).toBe('2026-08-01');
+    expect(addPeriod('2026-01-01', -1, 'monthly')).toBe('2025-12-01');
   });
 });
 

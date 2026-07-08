@@ -94,6 +94,64 @@ export function weekLabel(startISO) {
   return fmtISOday(startISO) + ' – ' + fmtISOday(end) + ', ' + ey;
 }
 
+// --- pay-period helpers (weekly | biweekly | monthly) ---
+// Biweekly blocks are anchored to a fixed Saturday so they stay consistent.
+const BIWEEK_ANCHOR = '1970-01-03'; // a Saturday
+function daysBetween(isoA, isoB) {
+  const [ay, am, ad] = isoA.split('-').map(Number);
+  const [by, bm, bd] = isoB.split('-').map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+function monthStartISO(iso) { return iso.slice(0, 7) + '-01'; }
+function monthEndISO(iso) {
+  const [y, m] = iso.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m, 0)); // day 0 of next month = last day of this month
+  return d.toISOString().slice(0, 10);
+}
+function addMonthsISO(iso, n) {
+  const [y, m] = iso.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return d.toISOString().slice(0, 10);
+}
+
+export function periodStartISO(x, payPeriod) {
+  const p = payPeriod || APP_SETTINGS.payPeriod || 'weekly';
+  if (p === 'monthly') {
+    const iso = typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : dateISO(x);
+    return monthStartISO(iso);
+  }
+  const wStart = weekStartISO(x);
+  if (p === 'biweekly') {
+    const weeks = Math.floor(daysBetween(BIWEEK_ANCHOR, wStart) / 7);
+    return ((weeks % 2) + 2) % 2 === 0 ? wStart : shiftISO(wStart, -7);
+  }
+  return wStart; // weekly
+}
+export function periodEndISO(periodStart, payPeriod) {
+  const p = payPeriod || APP_SETTINGS.payPeriod || 'weekly';
+  if (p === 'monthly') return monthEndISO(periodStart);
+  if (p === 'biweekly') return shiftISO(periodStart, 13);
+  return shiftISO(periodStart, 6);
+}
+export function addPeriod(periodStart, n, payPeriod) {
+  const p = payPeriod || APP_SETTINGS.payPeriod || 'weekly';
+  if (p === 'monthly') return addMonthsISO(periodStart, n);
+  if (p === 'biweekly') return shiftISO(periodStart, n * 14);
+  return shiftISO(periodStart, n * 7);
+}
+export function thisPeriodStart(payPeriod) { return periodStartISO(new Date(), payPeriod); }
+export function periodLabel(periodStart, payPeriod) {
+  const p = payPeriod || APP_SETTINGS.payPeriod || 'weekly';
+  if (p === 'weekly') return weekLabel(periodStart);
+  const end = periodEndISO(periodStart, p);
+  if (p === 'monthly') {
+    const [y, m] = periodStart.split('-').map(Number);
+    const name = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(LOCALE, { month: 'long', timeZone: 'UTC' });
+    return name + ' ' + y;
+  }
+  return fmtISOday(periodStart) + ' – ' + fmtISOday(end) + ', ' + end.split('-')[0];
+}
+
 export function fmtTime(ms) {
   return new Date(ms).toLocaleTimeString(LOCALE, {
     hour: '2-digit', minute: '2-digit', timeZone: APP_SETTINGS.timeZone,

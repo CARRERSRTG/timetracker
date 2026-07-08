@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { sessions as sessionsApi, payrolls as payrollsApi, audit as auditApi } from '@shared/lib/supabase.js';
 import {
-  APP_SETTINGS, computePay, money, fmtClock, fmtHM, fmtDT, dateISO,
-  weekStartISO, weekEndISO, weekLabel, addWeeks, thisWeekStart, breaksText,
+  APP_SETTINGS, computePay, money, fmtClock, fmtHM, fmtDT, dateISO, weekStartISO, breaksText,
+  periodStartISO, periodEndISO, addPeriod, thisPeriodStart, periodLabel,
 } from '../lib/helpers.js';
 
 // Payroll adapted to our schema: batches live in `payrolls`, the amount is the
@@ -24,7 +24,8 @@ function fromRange(date, from, to) {
 const paidAtMs = (b) => (b && b.paidAt ? new Date(b.paidAt).getTime() : 0);
 
 export default function ManagerReports({ profile, users, projects, assignments }) {
-  const [week, setWeek] = useState(thisWeekStart());
+  const payPeriod = APP_SETTINGS.payPeriod || 'weekly';
+  const [week, setWeek] = useState(thisPeriodStart(payPeriod));
   const [sessions, setSessions] = useState([]);
   const [batches, setBatches] = useState([]);
   const [expanded, setExpanded] = useState(null);
@@ -39,7 +40,7 @@ export default function ManagerReports({ profile, users, projects, assignments }
   const [addUid, setAddUid] = useState(null);
   const [nadd, setNadd] = useState({ assignmentId: '', date: '', from: '', to: '' });
 
-  const start = week, end = weekEndISO(week);
+  const start = week, end = periodEndISO(week, payPeriod);
   useEffect(() => sessionsApi.subscribeDateRange(start, end, setSessions), [start, end]);
   useEffect(() => payrollsApi.subscribeByWeek(week, setBatches), [week]);
 
@@ -54,25 +55,32 @@ export default function ManagerReports({ profile, users, projects, assignments }
 
   const adjOf = (list) => (list || []).reduce((n, a) => n + Number(a.amount || 0), 0);
 
+  // Group by assignment, but compute pay PER WEEK so the weekly OT threshold and
+  // weekly limit stay correct even when the pay period is biweekly/monthly.
   function calcLines(sess) {
-    const agg = {};
+    const byA = {};
     sess.forEach((s) => {
-      if (!agg[s.assignmentId]) agg[s.assignmentId] = { sec: 0, active: 0 };
-      agg[s.assignmentId].sec += s.durationSeconds || 0;
-      agg[s.assignmentId].active += s.activeSeconds || 0;
+      const g = (byA[s.assignmentId] = byA[s.assignmentId] || { sec: 0, active: 0, weeks: {} });
+      g.sec += s.durationSeconds || 0;
+      g.active += s.activeSeconds || 0;
+      const w = weekStartISO(s.date);
+      g.weeks[w] = (g.weeks[w] || 0) + (s.durationSeconds || 0);
     });
     let pay = 0, sec = 0;
-    const lines = Object.entries(agg).map(([aid, g]) => {
+    const lines = Object.entries(byA).map(([aid, g]) => {
       const a = aMap[aid];
-      const hours = g.sec / 3600;
-      const calc = a ? computePay(hours, a) : { pay: 0, reg: 0, ot: 0, overLimit: 0 };
-      pay += calc.pay; sec += g.sec;
-      return { aid, a, g, calc };
+      let reg = 0, ot = 0, p = 0, overLimit = 0;
+      Object.values(g.weeks).forEach((wsec) => {
+        const c = a ? computePay(wsec / 3600, a) : { pay: 0, reg: 0, ot: 0, overLimit: 0 };
+        reg += c.reg; ot += c.ot; p += c.pay; overLimit += c.overLimit;
+      });
+      pay += p; sec += g.sec;
+      return { aid, a, g: { sec: g.sec, active: g.active }, calc: { reg, ot, pay: p, overLimit } };
     });
     return { lines, pay, sec };
   }
 
-  const weekSessions = sessions.filter((s) => weekStartISO(s.date) === week);
+  const weekSessions = sessions.filter((s) => s.date >= start && s.date <= end);
   const byEmp = {};
   weekSessions.forEach((s) => {
     const bk = s.payrollId || 'live';
@@ -188,9 +196,9 @@ export default function ManagerReports({ profile, users, projects, assignments }
         const total = (b ? b.total || 0 : pay) + adj;
         lines.forEach((l) => {
           const proj = l.a && pMap[l.a.projectId] ? pMap[l.a.projectId] : { name: '(deleted)', location: '' };
-          rows.push([emp ? emp.name : '', b ? 'Payment' : 'Current', status, proj.name, proj.location || '', (l.g.sec / 3600).toFixed(2), l.calc.reg.toFixed(2), l.calc.ot.toFixed(2), l.calc.pay.toFixed(2), adj.toFixed(2), total.toFixed(2), (b && b.method) || '', weekLabel(week)]);
+          rows.push([emp ? emp.name : '', b ? 'Payment' : 'Current', status, proj.name, proj.location || '', (l.g.sec / 3600).toFixed(2), l.calc.reg.toFixed(2), l.calc.ot.toFixed(2), l.calc.pay.toFixed(2), adj.toFixed(2), total.toFixed(2), (b && b.method) || '', periodLabel(week, payPeriod)]);
         });
-        adjs.forEach((ad) => rows.push([emp ? emp.name : '', b ? 'Payment' : 'Current', status, ad.label, '', '', '', '', ad.amount, '', '', (b && b.method) || '', weekLabel(week)]));
+        adjs.forEach((ad) => rows.push([emp ? emp.name : '', b ? 'Payment' : 'Current', status, ad.label, '', '', '', '', ad.amount, '', '', (b && b.method) || '', periodLabel(week, payPeriod)]));
       });
     });
     const csv = rows.map((r) => r.map(csvEscape).join(',')).join('\n');
@@ -347,9 +355,9 @@ export default function ManagerReports({ profile, users, projects, assignments }
         <h2 style={{ margin: 0 }}>Reports / Pay</h2>
         <div className="row" style={{ alignItems: 'center' }}>
           <button className="btn-ghost btn-sm" onClick={exportCSV} disabled={empIds.length === 0}>⬇ CSV</button>
-          <button className="btn-ghost btn-sm" onClick={() => setWeek(addWeeks(week, -1))}>← Previous</button>
-          <span className="small nowrap">{weekLabel(week)}</span>
-          <button className="btn-ghost btn-sm" disabled={week >= thisWeekStart()} onClick={() => setWeek(addWeeks(week, 1))}>Next →</button>
+          <button className="btn-ghost btn-sm" onClick={() => setWeek(addPeriod(week, -1, payPeriod))}>← Previous</button>
+          <span className="small nowrap">{periodLabel(week, payPeriod)}</span>
+          <button className="btn-ghost btn-sm" disabled={week >= thisPeriodStart(payPeriod)} onClick={() => setWeek(addPeriod(week, 1, payPeriod))}>Next →</button>
         </div>
       </div>
 
@@ -408,7 +416,7 @@ export default function ManagerReports({ profile, users, projects, assignments }
             <div><b>Employee:</b> {receipt.emp ? receipt.emp.name : '—'}{receipt.emp && receipt.emp.city ? ' · ' + receipt.emp.city : ''}</div>
             {receipt.emp && receipt.emp.payMethod ? <div className="small"><b>Pay to:</b> {receipt.emp.payMethod}{receipt.emp.payDetails ? ' · ' + receipt.emp.payDetails : ''}</div> : null}
             <div className="small muted">
-              Period: {weekLabel(week)}
+              Period: {periodLabel(week, payPeriod)}
               {receipt.batch && paidAtMs(receipt.batch) ? '  ·  Paid ' + fmtDT(paidAtMs(receipt.batch), { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
               {receipt.batch && receipt.batch.method ? '  ·  ' + receipt.batch.method : ''}
             </div>
