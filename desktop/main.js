@@ -23,6 +23,15 @@ try {
   console.error('electron-updater unavailable — auto-update disabled:', e.message);
 }
 
+// Active-window title (for the smart-idle work-app label). get-windows is the
+// maintained successor to active-win; loaded defensively.
+let activeWindow = null;
+try {
+  activeWindow = require('get-windows').activeWindow;
+} catch (e) {
+  console.error('get-windows unavailable — active-window label disabled:', e.message);
+}
+
 let mainWindow = null;
 
 // activity counters (system-wide, accumulated for the current session)
@@ -92,6 +101,39 @@ ipcMain.handle('tt:stop', () => {
 });
 
 ipcMain.handle('tt:getActivity', () => ({ ...activity }));
+
+// --- smart-idle context: is the screen actually changing, and in what app? ---
+// We keep the last low-res frame and diff against it to measure on-screen motion
+// (meeting video, a video, scrolling, text appearing). This can't be faked by
+// just parking an app in the foreground.
+let lastFrame = null;
+async function screenMovement() {
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 160, height: 100 } });
+  if (!sources.length) return 0;
+  const buf = sources[0].thumbnail.toBitmap(); // raw BGRA pixels
+  let movement = 0;
+  if (lastFrame && lastFrame.length === buf.length) {
+    let changed = 0, count = 0;
+    for (let i = 0; i < buf.length; i += 16) { // sample every 4th pixel (4 bytes each)
+      const d = Math.abs(buf[i] - lastFrame[i]) + Math.abs(buf[i + 1] - lastFrame[i + 1]) + Math.abs(buf[i + 2] - lastFrame[i + 2]);
+      if (d > 30) changed++;
+      count++;
+    }
+    movement = count ? changed / count : 0;
+  }
+  lastFrame = buf;
+  return movement;
+}
+
+ipcMain.handle('tt:context', async () => {
+  let app = '', title = '';
+  try {
+    if (activeWindow) { const w = await activeWindow(); if (w) { app = (w.owner && w.owner.name) || ''; title = w.title || ''; } }
+  } catch (e) { /* ignore */ }
+  let movement = 0;
+  try { movement = await screenMovement(); } catch (e) { /* ignore */ }
+  return { app, title, movement };
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({

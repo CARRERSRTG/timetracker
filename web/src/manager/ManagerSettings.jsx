@@ -14,6 +14,8 @@ export default function ManagerSettings() {
   const [adjTypes, setAdjTypes] = useState((APP_SETTINGS.adjustmentTypes || []).join(', '));
   const [shotMin, setShotMin] = useState(APP_SETTINGS.screenshotIntervalMin ?? 10);
   const [idleMin, setIdleMin] = useState(APP_SETTINGS.idleLimitMin ?? 5);
+  const [smartIdle, setSmartIdle] = useState(APP_SETTINGS.smartIdle !== false);
+  const [workApps, setWorkApps] = useState((APP_SETTINGS.workApps || []).join(', '));
   const [wtype, setWtype] = useState(APP_SETTINGS.defaultWorkerType);
   const [tmode, setTmode] = useState(APP_SETTINGS.defaultTrackMode);
   const [breaks, setBreaks] = useState(APP_SETTINGS.defaultBreaksEnabled ? 'yes' : 'no');
@@ -42,6 +44,8 @@ export default function ManagerSettings() {
       adjustmentTypes: alist.length ? alist : ['Bonus', 'Advance', 'Deduction'],
       screenshotIntervalMin: Math.max(1, Number(shotMin) || 10),
       idleLimitMin: Math.max(0, Number(idleMin) || 0),
+      smartIdle,
+      workApps: workApps.split(',').map((s) => s.trim()).filter(Boolean),
       defaultWorkerType: wtype,
       defaultTrackMode: tmode,
       defaultBreaksEnabled: breaks === 'yes',
@@ -164,6 +168,20 @@ export default function ManagerSettings() {
       <p className="small muted" style={{ marginTop: 4 }}>
         After the idle limit with no keyboard/mouse input, the timer stops counting; that idle time is excluded from paid hours.
       </p>
+
+      <label style={{ marginTop: 14 }}>
+        <input type="checkbox" checked={smartIdle} onChange={(e) => setSmartIdle(e.target.checked)} style={{ width: 'auto', marginRight: 8 }} />
+        Smart idle (desktop): count input-idle time when the screen is active in a work app
+      </label>
+      {smartIdle && (
+        <>
+          <label style={{ marginTop: 8 }}>Work apps (comma-separated, matched against the active window)</label>
+          <textarea value={workApps} onChange={(e) => setWorkApps(e.target.value)} rows={3} placeholder="Meet, Zoom, Teams, Claude, RingCentral, VS Code…" />
+          <p className="small muted" style={{ marginTop: 4 }}>
+            When someone is input-idle but the screen is changing (a meeting, a video, reading, code appearing) in one of these apps, the time counts and is labeled with the app — so meetings and reading aren't penalized. A parked app with a frozen screen still counts as idle.
+          </p>
+        </>
+      )}
 
       <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>Default setup (can be overridden per employee)</h3>

@@ -22,4 +22,8 @@ contextBridge.exposeInMainWorld('ttDesktop', {
 
   // current system-wide counters { keystrokes, clicks } since session start
   getActivity: () => ipcRenderer.invoke('tt:getActivity'),
+
+  // smart-idle context: { app, title, movement } — movement is 0..1 fraction of
+  // the screen that changed since the last probe
+  getContext: () => ipcRenderer.invoke('tt:context'),
 });

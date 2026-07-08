@@ -57,3 +57,9 @@ export async function desktopGetActivity() {
   if (!IS_DESKTOP) return null;
   try { return await window.ttDesktop.getActivity(); } catch { return null; }
 }
+
+// { app, title, movement } — for smart idle. Null on web or if unavailable.
+export async function desktopGetContext() {
+  if (!IS_DESKTOP || !window.ttDesktop.getContext) return null;
+  try { return await window.ttDesktop.getContext(); } catch { return null; }
+}

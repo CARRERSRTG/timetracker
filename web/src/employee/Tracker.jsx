@@ -3,11 +3,12 @@ import { sessions as sessionsApi } from '@shared/lib/supabase.js';
 import {
   APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
-import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity } from '../lib/desktop.js';
+import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext } from '../lib/desktop.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
 
 const METER_BARS = 20; // rolling activity window shown as bars
+const MOVEMENT_THRESHOLD = 0.02; // ≥2% of the sampled screen changed = "moving"
 
 export default function Tracker({ profile, user, assignments, sessions }) {
   const t = useT();
@@ -49,9 +50,14 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const nearHitRef = useRef(false);     // already notified about nearing the limit?
   const idleStreakRef = useRef(0);      // consecutive seconds with no input
   const idleRef = useRef(0);            // total seconds excluded as idle
+  const ctxRef = useRef(null);          // last {app,title,movement} probe
+  const ctxProbeRef = useRef(0);        // countdown to next context probe
   const [isIdle, setIsIdle] = useState(false);
+  const [ctxApp, setCtxApp] = useState(''); // work app recognized during idle (label)
 
   const idleLimitSec = Number(APP_SETTINGS.idleLimitMin) > 0 ? Number(APP_SETTINGS.idleLimitMin) * 60 : Infinity;
+  const smartIdle = APP_SETTINGS.smartIdle !== false;
+  const workApps = Array.isArray(APP_SETTINGS.workApps) ? APP_SETTINGS.workApps : [];
 
   const selected = assignments.find((a) => a.id === assignmentId);
   const shotMin = Number(APP_SETTINGS.screenshotIntervalMin) || DESKTOP_SHOT_MIN;
@@ -132,6 +138,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
     secHadEventRef.current = false; lastActTotalRef.current = 0;
     idleStreakRef.current = 0; idleRef.current = 0; setIsIdle(false);
+    ctxRef.current = null; ctxProbeRef.current = 0; setCtxApp('');
     startMsRef.current = Date.now();
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
     setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
@@ -189,21 +196,43 @@ export default function Tracker({ profile, user, assignments, sessions }) {
         hadEvent = secHadEventRef.current;
         secHadEventRef.current = false;
       }
-      const activeThisSec = hadEvent && !onBreakRef.current;
-      if (activeThisSec) activeSecondsRef.current++;
-
       // Idle detection: after idleLimit seconds of no input (and not on break),
-      // stop counting — those seconds are excluded from the paid duration.
+      // stop counting — UNLESS smart idle recognizes real screen activity in a
+      // work app (a meeting, reading, a video, code appearing), which counts and
+      // is labeled with the app. Parking an app with a frozen screen still idles.
       let idleNow = false;
+      let productiveNow = false;
+      let appLabel = '';
       if (onBreakRef.current) {
         idleStreakRef.current = 0;
       } else if (hadEvent) {
         idleStreakRef.current = 0;
       } else {
         idleStreakRef.current++;
-        if (idleStreakRef.current > idleLimitSec) { idleRef.current++; idleNow = true; }
+        if (idleStreakRef.current > idleLimitSec) {
+          if (smartIdle && IS_DESKTOP) {
+            // probe the screen/app every few seconds (capture is not free)
+            ctxProbeRef.current -= 1;
+            if (ctxProbeRef.current <= 0) {
+              ctxProbeRef.current = 4;
+              desktopGetContext().then((c) => { if (c) ctxRef.current = c; }).catch(() => {});
+            }
+            const c = ctxRef.current || {};
+            const hay = ((c.app || '') + ' ' + (c.title || '')).toLowerCase();
+            const isWork = hay.trim() && workApps.some((k) => hay.includes(String(k).toLowerCase()));
+            const moving = (c.movement || 0) >= MOVEMENT_THRESHOLD;
+            if (isWork && moving) { productiveNow = true; appLabel = c.app || c.title || ''; }
+            else { idleRef.current += 1; idleNow = true; }
+          } else {
+            idleRef.current += 1; idleNow = true;
+          }
+        }
       }
+
+      const activeThisSec = (hadEvent || productiveNow) && !onBreakRef.current;
+      if (activeThisSec) activeSecondsRef.current += 1;
       if (idleNow !== isIdle) setIsIdle(idleNow);
+      if (appLabel !== ctxApp) setCtxApp(appLabel);
 
       const net = netSeconds(el);
       setWorked(net);
@@ -257,7 +286,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     } finally {
       if (IS_DESKTOP && window.ttDesktop) { try { window.ttDesktop.stop(); } catch { /* ignore */ } }
       sessionIdRef.current = null;
-      setRunning(false); onBreakRef.current = null; setOnBreak(null); setIsIdle(false);
+      setRunning(false); onBreakRef.current = null; setOnBreak(null); setIsIdle(false); setCtxApp('');
       setWorked(0); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
       setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     }
@@ -331,7 +360,9 @@ export default function Tracker({ profile, user, assignments, sessions }) {
             <div className="timer-big">{fmtClock(worked)}</div>
             <div className="small muted">
               {running
-                ? isIdle ? t('track.idle') : onBreak === 'lunch' ? t('track.onLunch') : onBreak === 'break' ? t('track.onBreak') : isInOut ? t('track.clockedIn') : t('track.running')
+                ? ctxApp ? t('track.activeApp', { app: ctxApp })
+                  : isIdle ? t('track.idle')
+                  : onBreak === 'lunch' ? t('track.onLunch') : onBreak === 'break' ? t('track.onBreak') : isInOut ? t('track.clockedIn') : t('track.running')
                 : t('track.stopped')}
               {running && (lunchRef.current > 0 || brkRef.current > 0)
                 ? <> · lunch {fmtClock(breaks.lunch)} · break {fmtClock(breaks.brk)}</> : null}

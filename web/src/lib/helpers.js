@@ -24,6 +24,10 @@ export let APP_SETTINGS = {
   defaultTrackMode: 'activity',
   defaultBreaksEnabled: true,
   idleLimitMin: 5, // stop counting after this many minutes of no input (0 = off)
+  smartIdle: true, // count input-idle time when the screen is active in a work app (desktop)
+  workApps: ['Meet', 'Zoom', 'Teams', 'Webex', 'Skype', 'RingCentral', 'Slack', 'Claude', 'ChatGPT',
+    'Docs', 'Sheets', 'Slides', 'Word', 'Excel', 'PowerPoint', 'Outlook', 'Gmail',
+    'Visual Studio Code', 'VS Code', 'Figma', 'Notion', 'Loom', 'Jira', 'Linear'],
   paymentMethods: ['Cash', 'Bank transfer', 'PayPal'],
 };
 

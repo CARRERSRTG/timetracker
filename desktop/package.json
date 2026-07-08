@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "uiohook-napi": "^1.5.4",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "get-windows": "^9.2.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
