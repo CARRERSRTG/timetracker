@@ -10,6 +10,7 @@ import { notify } from '../lib/notify.js';
 import Tracker from './Tracker.jsx';
 import EmployeeWeek from './EmployeeWeek.jsx';
 import EmployeeRequests from './EmployeeRequests.jsx';
+import EmployeeScreenshots from './EmployeeScreenshots.jsx';
 import MyAccount from './MyAccount.jsx';
 
 const REQ_LABEL = { add: 'Add time', adjust: 'Adjust time', delete: 'Delete time' };
@@ -71,6 +72,7 @@ export default function EmployeeDashboard({ profile }) {
         <button className={tab === 'req' ? 'active' : ''} onClick={() => setTab('req')}>
           My requests{pendingReq > 0 && <span className="badge">{pendingReq}</span>}
         </button>
+        <button className={tab === 'shots' ? 'active' : ''} onClick={() => setTab('shots')}>My screenshots</button>
         <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>My account</button>
       </div>
 
@@ -80,6 +82,7 @@ export default function EmployeeDashboard({ profile }) {
       </div>
       {tab === 'week' && <EmployeeWeek profile={profile} assignments={myAssignments} sessions={sessions} />}
       {tab === 'req' && <EmployeeRequests profile={profile} assignments={myAssignments} sessions={sessions} requests={requests} />}
+      {tab === 'shots' && <EmployeeScreenshots profile={profile} />}
       {tab === 'account' && <MyAccount me={me} />}
     </>
   );

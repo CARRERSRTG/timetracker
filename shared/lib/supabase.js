@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
   defaultWorkerType: 'remote',
   defaultTrackMode: 'activity',
   defaultBreaksEnabled: true,
+  idleLimitMin: 5,
   adjustmentTypes: ['Bonus', 'Advance', 'Deduction'],
   screenshotIntervalMin: 10,
   companyName: '', companyAddress: '', companyTaxId: '',
@@ -258,6 +259,13 @@ export const sessions = {
     if (error) throw error;
     return (data || []).map(rowToCamel);
   },
+  // manager live monitor: everyone currently clocked in (admin RLS reads all)
+  subscribeLive(callback) {
+    return subscribeList('sessions', {
+      query: (q) => q.eq('is_live', true),
+      realtimeFilter: 'is_live=eq.true',
+    }, callback);
+  },
 };
 
 // ---------------------------------------------------------------------
@@ -376,6 +384,12 @@ export const screenshots = {
     }, (rows) => callback(rows.slice(0, limitN || 120)));
   },
   async remove(id) {
+    const { error } = await supabase.from('screenshots').delete().eq('id', id);
+    if (error) throw error;
+  },
+  // delete a single shot: both the storage file and the metadata row
+  async deleteWithFile({ id, path }) {
+    if (path) { const { error } = await supabase.storage.from('screenshots').remove([path]); if (error) throw error; }
     const { error } = await supabase.from('screenshots').delete().eq('id', id);
     if (error) throw error;
   },

@@ -23,6 +23,7 @@ export let APP_SETTINGS = {
   defaultWorkerType: 'remote',
   defaultTrackMode: 'activity',
   defaultBreaksEnabled: true,
+  idleLimitMin: 5, // stop counting after this many minutes of no input (0 = off)
   paymentMethods: ['Cash', 'Bank transfer', 'PayPal'],
 };
 

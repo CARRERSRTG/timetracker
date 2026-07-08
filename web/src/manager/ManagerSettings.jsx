@@ -13,6 +13,7 @@ export default function ManagerSettings() {
   const [methods, setMethods] = useState((APP_SETTINGS.paymentMethods || []).join(', '));
   const [adjTypes, setAdjTypes] = useState((APP_SETTINGS.adjustmentTypes || []).join(', '));
   const [shotMin, setShotMin] = useState(APP_SETTINGS.screenshotIntervalMin ?? 10);
+  const [idleMin, setIdleMin] = useState(APP_SETTINGS.idleLimitMin ?? 5);
   const [wtype, setWtype] = useState(APP_SETTINGS.defaultWorkerType);
   const [tmode, setTmode] = useState(APP_SETTINGS.defaultTrackMode);
   const [breaks, setBreaks] = useState(APP_SETTINGS.defaultBreaksEnabled ? 'yes' : 'no');
@@ -40,6 +41,7 @@ export default function ManagerSettings() {
       paymentMethods: list,
       adjustmentTypes: alist.length ? alist : ['Bonus', 'Advance', 'Deduction'],
       screenshotIntervalMin: Math.max(1, Number(shotMin) || 10),
+      idleLimitMin: Math.max(0, Number(idleMin) || 0),
       defaultWorkerType: wtype,
       defaultTrackMode: tmode,
       defaultBreaksEnabled: breaks === 'yes',
@@ -149,8 +151,19 @@ export default function ManagerSettings() {
       <label style={{ marginTop: 14 }}>Adjustment types (comma-separated)</label>
       <input value={adjTypes} onChange={(e) => setAdjTypes(e.target.value)} placeholder="Bonus, Advance, Deduction" />
 
-      <label style={{ marginTop: 14 }}>Screenshot interval (minutes, desktop app)</label>
-      <input type="number" min="1" value={shotMin} onChange={(e) => setShotMin(e.target.value)} placeholder="10" />
+      <div className="grid g2">
+        <div>
+          <label>Screenshot interval (minutes, desktop app)</label>
+          <input type="number" min="1" value={shotMin} onChange={(e) => setShotMin(e.target.value)} placeholder="10" />
+        </div>
+        <div>
+          <label>Idle limit (minutes, 0 = off)</label>
+          <input type="number" min="0" value={idleMin} onChange={(e) => setIdleMin(e.target.value)} placeholder="5" />
+        </div>
+      </div>
+      <p className="small muted" style={{ marginTop: 4 }}>
+        After the idle limit with no keyboard/mouse input, the timer stops counting; that idle time is excluded from paid hours.
+      </p>
 
       <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>Default setup (can be overridden per employee)</h3>

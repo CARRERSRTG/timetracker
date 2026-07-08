@@ -44,6 +44,8 @@ export default function App() {
     });
   }, [user]);
 
+  if (profile && profile.active === false) return <PendingApproval onSignOut={() => auth.signOut()} />;
+
   if (!configOk) return <ConfigNotice />;
   if (user === undefined) return <BootScreen label="Loading…" />;
   if (!user) return <AuthScreen />;
@@ -62,6 +64,21 @@ function BootScreen({ label, onSignOut }) {
             Sign out
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PendingApproval({ onSignOut }) {
+  return (
+    <div className="center">
+      <div className="authbox card" style={{ textAlign: 'center' }}>
+        <div className="brand" style={{ marginBottom: 10 }}>Time<span>Tracker</span></div>
+        <div className="banner info">Your account is awaiting approval.</div>
+        <p className="small muted">
+          A manager needs to activate your account before you can track time. You'll get in as soon as they do.
+        </p>
+        <button className="btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onSignOut}>Sign out</button>
       </div>
     </div>
   );

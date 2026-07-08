@@ -45,6 +45,11 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const lastActTotalRef = useRef(0);    // last keystrokes+clicks total (desktop delta)
   const limitHitRef = useRef(false);    // already notified about hitting the limit?
   const nearHitRef = useRef(false);     // already notified about nearing the limit?
+  const idleStreakRef = useRef(0);      // consecutive seconds with no input
+  const idleRef = useRef(0);            // total seconds excluded as idle
+  const [isIdle, setIsIdle] = useState(false);
+
+  const idleLimitSec = Number(APP_SETTINGS.idleLimitMin) > 0 ? Number(APP_SETTINGS.idleLimitMin) * 60 : Infinity;
 
   const selected = assignments.find((a) => a.id === assignmentId);
   const shotMin = Number(APP_SETTINGS.screenshotIntervalMin) || DESKTOP_SHOT_MIN;
@@ -103,10 +108,20 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   // clean up the ticker if the component unmounts mid-run
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
-  function netSeconds(el) { return Math.max(0, el - lunchRef.current - brkRef.current); }
+  function netSeconds(el) { return Math.max(0, el - lunchRef.current - brkRef.current - idleRef.current); }
 
   function breakEventsPayload() {
     return breakEventsRef.current.map((e) => ({ kind: e.kind, start: e.start, end: e.end || null }));
+  }
+
+  // Persist a session update, retrying a couple of times on transient failures
+  // (flaky network) so a dropped tick doesn't lose time. Best-effort.
+  async function writeSession(id, patch, tries = 3) {
+    for (let i = 0; i < tries; i++) {
+      try { await sessionsApi.update(id, patch); return true; }
+      catch { await new Promise((r) => setTimeout(r, 500 * (i + 1))); }
+    }
+    return false;
   }
 
   async function start() {
@@ -114,6 +129,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     lunchRef.current = 0; brkRef.current = 0; onBreakRef.current = null; breakEventsRef.current = [];
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
     secHadEventRef.current = false; lastActTotalRef.current = 0;
+    idleStreakRef.current = 0; idleRef.current = 0; setIsIdle(false);
     startMsRef.current = Date.now();
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
     setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
@@ -174,6 +190,19 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       const activeThisSec = hadEvent && !onBreakRef.current;
       if (activeThisSec) activeSecondsRef.current++;
 
+      // Idle detection: after idleLimit seconds of no input (and not on break),
+      // stop counting — those seconds are excluded from the paid duration.
+      let idleNow = false;
+      if (onBreakRef.current) {
+        idleStreakRef.current = 0;
+      } else if (hadEvent) {
+        idleStreakRef.current = 0;
+      } else {
+        idleStreakRef.current++;
+        if (idleStreakRef.current > idleLimitSec) { idleRef.current++; idleNow = true; }
+      }
+      if (idleNow !== isIdle) setIsIdle(idleNow);
+
       const net = netSeconds(el);
       setWorked(net);
       setBreaks({ lunch: lunchRef.current, brk: brkRef.current });
@@ -181,16 +210,17 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       setMeter((prev) => { const m = prev.slice(1); m.push(activeThisSec); return m; });
 
       if (el > 0 && el % 10 === 0 && sessionIdRef.current) {
-        sessionsApi.update(sessionIdRef.current, {
+        writeSession(sessionIdRef.current, {
           endMs: Date.now(),
           durationSeconds: net,
           activeSeconds: activeSecondsRef.current,
+          idleSeconds: idleRef.current,
           keystrokes: keystrokesRef.current,
           clicks: clicksRef.current,
           lunchSeconds: lunchRef.current,
           breakSeconds: brkRef.current,
           breakEvents: breakEventsPayload(),
-        }).catch(() => {});
+        });
       }
     }, 1000);
   }
@@ -207,23 +237,25 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     const net = netSeconds(el);
     const id = sessionIdRef.current;
     try {
-      if (id) await sessionsApi.update(id, {
-        endMs: Date.now(),
-        durationSeconds: net,
-        activeSeconds: activeSecondsRef.current,
-        keystrokes: keystrokesRef.current,
-        clicks: clicksRef.current,
-        lunchSeconds: lunchRef.current,
-        breakSeconds: brkRef.current,
-        breakEvents: breakEventsPayload(),
-        isLive: false,
-      });
-    } catch (e) {
-      alert('Could not save the entry: ' + (e.message || e));
+      if (id) {
+        const ok = await writeSession(id, {
+          endMs: Date.now(),
+          durationSeconds: net,
+          activeSeconds: activeSecondsRef.current,
+          idleSeconds: idleRef.current,
+          keystrokes: keystrokesRef.current,
+          clicks: clicksRef.current,
+          lunchSeconds: lunchRef.current,
+          breakSeconds: brkRef.current,
+          breakEvents: breakEventsPayload(),
+          isLive: false,
+        });
+        if (!ok) alert('Could not save the entry after several tries. Check your connection — your time may not be recorded.');
+      }
     } finally {
       if (IS_DESKTOP && window.ttDesktop) { try { window.ttDesktop.stop(); } catch { /* ignore */ } }
       sessionIdRef.current = null;
-      setRunning(false); onBreakRef.current = null; setOnBreak(null);
+      setRunning(false); onBreakRef.current = null; setOnBreak(null); setIsIdle(false);
       setWorked(0); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
       setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     }
@@ -297,7 +329,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
             <div className="timer-big">{fmtClock(worked)}</div>
             <div className="small muted">
               {running
-                ? onBreak === 'lunch' ? '🍽 On lunch…' : onBreak === 'break' ? '☕ On break…' : isInOut ? 'Clocked in' : 'Running…'
+                ? isIdle ? '⏸ Idle — not counting' : onBreak === 'lunch' ? '🍽 On lunch…' : onBreak === 'break' ? '☕ On break…' : isInOut ? 'Clocked in' : 'Running…'
                 : 'Stopped'}
               {running && (lunchRef.current > 0 || brkRef.current > 0)
                 ? <> · lunch {fmtClock(breaks.lunch)} · break {fmtClock(breaks.brk)}</> : null}
@@ -346,6 +378,9 @@ export default function Tracker({ profile, user, assignments, sessions }) {
             <div className="stat"><div className="n">{fmtHrs(worked)}</div><div className="l">Worked</div></div>
             <div className="stat"><div className="n">{activePct}%</div><div className="l">Activity</div></div>
             <div className="stat"><div className="n">{fmtClock(breaks.lunch + breaks.brk)}</div><div className="l">Lunch + break</div></div>
+            {idleRef.current > 0 && (
+              <div className="stat"><div className="n">{fmtClock(idleRef.current)}</div><div className="l">Idle (excluded)</div></div>
+            )}
           </div>
         )}
       </div>

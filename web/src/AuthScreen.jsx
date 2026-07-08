@@ -119,7 +119,8 @@ export default function AuthScreen() {
 
           {mode === 'register' && (
             <p className="small muted" style={{ marginTop: 10 }}>
-              The first registered user becomes the manager.
+              The first registered user becomes the manager. After that, new
+              accounts must be activated by a manager before they can track time.
             </p>
           )}
         </div>

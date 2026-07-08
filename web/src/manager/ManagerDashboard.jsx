@@ -16,6 +16,7 @@ import ManagerRequests from './ManagerRequests.jsx';
 import ManagerReports from './ManagerReports.jsx';
 import ManagerPeople from './ManagerPeople.jsx';
 import ManagerSettings from './ManagerSettings.jsx';
+import LiveMonitor from './LiveMonitor.jsx';
 import Screenshots from './Screenshots.jsx';
 import Insights from './Insights.jsx';
 import AuditLog from './AuditLog.jsx';
@@ -60,6 +61,7 @@ export default function ManagerDashboard({ profile }) {
 
   const TABS = [
     ['insights', 'Dashboard'],
+    ['live', 'Working now'],
     ['reports', 'Reports / Pay'],
     ['requests', 'Requests'],
     ['projects', 'Projects'],
@@ -73,6 +75,9 @@ export default function ManagerDashboard({ profile }) {
     ['account', 'My account'],
   ];
 
+  const noProjects = projects.filter((p) => !p.archived).length === 0;
+  const noEmployees = users.filter((u) => u.id !== profile.id).length === 0;
+
   return (
     <>
       <div className="tabs">
@@ -84,12 +89,23 @@ export default function ManagerDashboard({ profile }) {
         ))}
       </div>
 
+      {(noProjects || noEmployees) && tab === 'insights' && (
+        <div className="banner info">
+          <b>Getting started:</b>{' '}
+          {noProjects && <>Create a <button className="link" onClick={() => setTab('projects')}>project</button>, </>}
+          {noProjects && <>assign someone to it under <button className="link" onClick={() => setTab('assign')}>Assignments</button>, </>}
+          {noEmployees && <>invite employees to register (they'll appear under <button className="link" onClick={() => setTab('people')}>Employees</button> for you to activate), </>}
+          then use <b>View as employee</b> to try tracking.
+        </div>
+      )}
+
       {/* keep the tracker mounted so a running timer survives tab switches */}
       <div style={{ display: tab === 'track' ? 'block' : 'none' }}>
         <Tracker profile={profile} user={me} assignments={myAssignments} sessions={mySessions} />
       </div>
       {tab === 'myweek' && <EmployeeWeek profile={profile} assignments={myAssignments} sessions={mySessions} />}
       {tab === 'account' && <MyAccount me={me} />}
+      {tab === 'live' && <LiveMonitor users={users} projects={projects} />}
       {tab === 'insights' && <Insights users={users} projects={projects} assignments={assignments} />}
       {tab === 'projects' && <ManagerProjects projects={projects} assignments={assignments} users={users} />}
       {tab === 'assign' && <ManagerAssignments users={users} projects={projects} assignments={assignments} />}

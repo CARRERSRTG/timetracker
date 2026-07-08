@@ -295,6 +295,49 @@ alter table public.payrolls    add column if not exists employee_name text;
 alter table public.payrolls    add column if not exists paid_by       uuid;
 alter table public.payrolls    add column if not exists session_count integer default 0;
 
+-- idle time excluded from a session's counted duration (Upwork-style)
+alter table public.sessions    add column if not exists idle_seconds  integer default 0;
+
+-- ---------------------------------------------------------------------
+-- Close open registration: employees start INACTIVE (pending) and must be
+-- activated by a manager. The first user (the manager) is active immediately.
+-- Re-created here so it runs after the `active` column exists.
+-- ---------------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  is_first boolean;
+begin
+  select not exists (select 1 from public.profiles) into is_first;
+  insert into public.profiles (id, email, name, role, active)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    case when is_first then 'admin' else 'employee' end,
+    is_first  -- first user active; everyone else pending until a manager activates
+  );
+  return new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- Let employees delete their OWN screenshots (review + discard), in addition
+-- to the manager-delete policies already defined.
+-- ---------------------------------------------------------------------
+drop policy if exists "screenshots delete own" on public.screenshots;
+create policy "screenshots delete own" on public.screenshots
+  for delete to authenticated using (employee_uid = auth.uid());
+
+drop policy if exists "shots delete own" on storage.objects;
+create policy "shots delete own" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'screenshots' and (storage.foldername(name))[1] = auth.uid()::text);
+
 -- =====================================================================
 --  SCREENSHOT RETENTION — auto-delete shots older than N days so Storage
 --  doesn't grow forever. Runs daily via pg_cron. Change '14 days' to taste.
