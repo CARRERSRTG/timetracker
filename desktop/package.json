@@ -1,0 +1,41 @@
+{
+  "name": "desktop",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Time Tracker desktop app (Electron, Windows)",
+  "author": "RDZ Tile Group",
+  "main": "main.js",
+  "scripts": {
+    "dev": "cross-env TT_DEV_URL=http://localhost:5173 electron .",
+    "start": "electron .",
+    "build": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "uiohook-napi": "^1.5.4"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^32.1.2",
+    "electron-builder": "^25.0.5"
+  },
+  "build": {
+    "appId": "net.rdztilegroup.timetracker",
+    "productName": "Time Tracker",
+    "electronVersion": "32.3.3",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "extraResources": [
+      { "from": "../web/dist", "to": "web" }
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

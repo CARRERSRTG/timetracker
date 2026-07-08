@@ -1,0 +1,22 @@
+{
+  "name": "timetracker",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "web",
+    "shared",
+    "desktop"
+  ],
+  "scripts": {
+    "web": "npm run dev --prefix web",
+    "desktop": "concurrently -k -n web,electron -c blue,green \"npm run dev --prefix web\" \"wait-on tcp:127.0.0.1:5173 && npm run dev --prefix desktop\"",
+    "build:web": "npm run build --prefix web",
+    "build:desktop": "npm run build --prefix web && npm run build --prefix desktop"
+  },
+  "devDependencies": {
+    "7zip-bin": "^5.2.0",
+    "app-builder-bin": "^5.0.0-alpha.10",
+    "concurrently": "^9.0.1",
+    "wait-on": "^8.0.1"
+  }
+}
