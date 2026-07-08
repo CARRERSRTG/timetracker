@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { auth, authErrorMessage } from '@shared/lib/supabase.js';
+import { useT } from './lib/i18n.js';
+import LangToggle from './LangToggle.jsx';
 
 export default function AuthScreen() {
+  const t = useT();
   const [mode, setMode] = useState('login');
   const [f, setF] = useState({
     name: '',
@@ -25,7 +28,7 @@ export default function AuthScreen() {
         if (f.name.trim().length < 2) throw new Error('Please enter your name.');
         const result = await auth.signUp({ email: f.email, password: f.pass, name: f.name });
         if (!result.session) {
-          setInfo('Account created! Check your email to confirm it, then sign in.');
+          setInfo(t('auth.confirmSent'));
           setMode('login');
         }
       } else {
@@ -43,12 +46,12 @@ export default function AuthScreen() {
     setErr('');
     setInfo('');
     if (!f.email.trim()) {
-      setErr('Type your email above first, then tap "Forgot password".');
+      setErr(t('auth.typeEmailFirst'));
       return;
     }
     try {
       await auth.resetPassword(f.email);
-      setInfo('Password reset email sent to ' + f.email.trim() + '. Check your inbox (and spam).');
+      setInfo(t('auth.resetSent', { email: f.email.trim() }));
     } catch (e) {
       setErr(authErrorMessage(e));
     }
@@ -58,21 +61,24 @@ export default function AuthScreen() {
     <div className="center">
       <div className="authbox">
         <div className="brand" style={{ textAlign: 'center', marginBottom: 16 }}>
-          Time<span>Tracker</span>
+          Time<span>{t('brand.suffix')}</span>
         </div>
         <div className="card">
-          <h2>{mode === 'login' ? 'Sign in' : 'Create account'}</h2>
-          {err && <div className="banner err">{err}</div>}
-          {info && <div className="banner ok">{info}</div>}
+          <div className="between" style={{ alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>{mode === 'login' ? t('auth.signin') : t('auth.create')}</h2>
+            <LangToggle />
+          </div>
+          {err && <div className="banner err" style={{ marginTop: 12 }}>{err}</div>}
+          {info && <div className="banner ok" style={{ marginTop: 12 }}>{info}</div>}
 
           {mode === 'register' && (
             <>
-              <label>Name</label>
-              <input value={f.name} onChange={(e) => upd('name', e.target.value)} placeholder="Your name" />
+              <label>{t('auth.name')}</label>
+              <input value={f.name} onChange={(e) => upd('name', e.target.value)} placeholder={t('auth.namePlaceholder')} />
             </>
           )}
 
-          <label>Email</label>
+          <label>{t('auth.email')}</label>
           <input
             type="email"
             value={f.email}
@@ -80,7 +86,7 @@ export default function AuthScreen() {
             placeholder="you@example.com"
           />
 
-          <label>Password</label>
+          <label>{t('auth.password')}</label>
           <input
             type="password"
             value={f.pass}
@@ -91,27 +97,27 @@ export default function AuthScreen() {
 
           {mode === 'login' && (
             <div style={{ textAlign: 'right', marginTop: 6 }}>
-              <button className="link" onClick={resetPw}>Forgot password?</button>
+              <button className="link" onClick={resetPw}>{t('auth.forgot')}</button>
             </div>
           )}
 
           <button style={{ width: '100%', marginTop: 16 }} disabled={busy} onClick={submit}>
-            {busy ? 'One moment…' : mode === 'login' ? 'Sign in' : 'Register'}
+            {busy ? t('auth.busy') : mode === 'login' ? t('auth.signin') : t('auth.register')}
           </button>
 
           <div className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>
             {mode === 'login' ? (
               <>
-                No account?{' '}
+                {t('auth.noAccount')}{' '}
                 <button className="link" onClick={() => { setMode('register'); setErr(''); setInfo(''); }}>
-                  Register
+                  {t('auth.register')}
                 </button>
               </>
             ) : (
               <>
-                Already have an account?{' '}
+                {t('auth.haveAccount')}{' '}
                 <button className="link" onClick={() => { setMode('login'); setErr(''); setInfo(''); }}>
-                  Sign in
+                  {t('auth.signin')}
                 </button>
               </>
             )}
@@ -119,8 +125,7 @@ export default function AuthScreen() {
 
           {mode === 'register' && (
             <p className="small muted" style={{ marginTop: 10 }}>
-              The first registered user becomes the manager. After that, new
-              accounts must be activated by a manager before they can track time.
+              {t('auth.firstUserNote')}
             </p>
           )}
         </div>

@@ -7,6 +7,7 @@ import {
   requests as requestsApi,
 } from '@shared/lib/supabase.js';
 import { notify } from '../lib/notify.js';
+import { useT } from '../lib/i18n.js';
 import Tracker from './Tracker.jsx';
 import EmployeeWeek from './EmployeeWeek.jsx';
 import EmployeeRequests from './EmployeeRequests.jsx';
@@ -16,6 +17,7 @@ import MyAccount from './MyAccount.jsx';
 const REQ_LABEL = { add: 'Add time', adjust: 'Adjust time', delete: 'Delete time' };
 
 export default function EmployeeDashboard({ profile }) {
+  const t = useT();
   const [tab, setTab] = useState('track');
   const [me, setMe] = useState(profile);
   const [assignments, setAssignments] = useState([]);
@@ -31,7 +33,8 @@ export default function EmployeeDashboard({ profile }) {
       requests.forEach((r) => {
         const was = prev.get(r.id);
         if (was === 'pending' && r.status !== 'pending') {
-          notify({ title: `Request ${r.status}`, body: `Your "${REQ_LABEL[r.type] || r.type}" request was ${r.status}.`, tag: 'req-' + r.id });
+          const status = t('status.' + r.status);
+          notify({ title: t('notify.reqTitle', { status }), body: t('notify.reqBody', { type: t('reqtype.' + r.type), status }), tag: 'req-' + r.id });
         }
       });
     }
@@ -67,13 +70,13 @@ export default function EmployeeDashboard({ profile }) {
   return (
     <>
       <div className="tabs">
-        <button className={tab === 'track' ? 'active' : ''} onClick={() => setTab('track')}>Track time</button>
-        <button className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')}>My week</button>
+        <button className={tab === 'track' ? 'active' : ''} onClick={() => setTab('track')}>{t('tab.track')}</button>
+        <button className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')}>{t('tab.week')}</button>
         <button className={tab === 'req' ? 'active' : ''} onClick={() => setTab('req')}>
-          My requests{pendingReq > 0 && <span className="badge">{pendingReq}</span>}
+          {t('tab.requests')}{pendingReq > 0 && <span className="badge">{pendingReq}</span>}
         </button>
-        <button className={tab === 'shots' ? 'active' : ''} onClick={() => setTab('shots')}>My screenshots</button>
-        <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>My account</button>
+        <button className={tab === 'shots' ? 'active' : ''} onClick={() => setTab('shots')}>{t('tab.shots')}</button>
+        <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>{t('tab.account')}</button>
       </div>
 
       {/* keep the Tracker mounted so a running timer survives tab switches */}

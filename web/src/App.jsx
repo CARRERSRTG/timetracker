@@ -3,6 +3,8 @@ import { configOk, auth, profiles, settings as settingsApi } from '@shared/lib/s
 import { syncAppSettings } from './lib/helpers.js';
 import { initDesktopShots } from './lib/desktop.js';
 import { ensureNotifyPermission } from './lib/notify.js';
+import { useT } from './lib/i18n.js';
+import LangToggle from './LangToggle.jsx';
 import AuthScreen from './AuthScreen.jsx';
 import EmployeeDashboard from './employee/EmployeeDashboard.jsx';
 import ManagerDashboard from './manager/ManagerDashboard.jsx';
@@ -70,15 +72,14 @@ function BootScreen({ label, onSignOut }) {
 }
 
 function PendingApproval({ onSignOut }) {
+  const t = useT();
   return (
     <div className="center">
       <div className="authbox card" style={{ textAlign: 'center' }}>
-        <div className="brand" style={{ marginBottom: 10 }}>Time<span>Tracker</span></div>
-        <div className="banner info">Your account is awaiting approval.</div>
-        <p className="small muted">
-          A manager needs to activate your account before you can track time. You'll get in as soon as they do.
-        </p>
-        <button className="btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onSignOut}>Sign out</button>
+        <div className="brand" style={{ marginBottom: 10 }}>Time<span>{t('brand.suffix')}</span></div>
+        <div className="banner info">{t('pending.title')}</div>
+        <p className="small muted">{t('pending.body')}</p>
+        <button className="btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={onSignOut}>{t('shell.signOut')}</button>
       </div>
     </div>
   );
@@ -99,37 +100,37 @@ function ConfigNotice() {
 }
 
 function Shell({ profile, onSignOut }) {
+  const t = useT();
   const isAdmin = profile.role === 'admin';
   const [asEmployee, setAsEmployee] = useState(false);
   const showEmployee = !isAdmin || asEmployee;
   return (
     <div className="wrap">
       <div className="topbar">
-        <div className="brand">Time<span>Tracker</span></div>
+        <div className="brand">Time<span>{t('brand.suffix')}</span></div>
         <div className="row" style={{ alignItems: 'center' }}>
           <span className="small muted nowrap">{profile.name}</span>
           <span className={'chip ' + (isAdmin ? 'tag-admin' : 'tag-emp')}>
-            {isAdmin ? 'Manager' : 'Employee'}
+            {isAdmin ? t('shell.manager') : t('shell.employee')}
           </span>
           {isAdmin && (
             <button className="btn-ghost btn-sm" onClick={() => setAsEmployee((v) => !v)}>
-              {asEmployee ? 'Back to manager' : 'View as employee'}
+              {asEmployee ? t('shell.backToManager') : t('shell.viewAsEmployee')}
             </button>
           )}
-          <button className="btn-ghost btn-sm" onClick={onSignOut}>Sign out</button>
+          <LangToggle />
+          <button className="btn-ghost btn-sm" onClick={onSignOut}>{t('shell.signOut')}</button>
         </div>
       </div>
 
       {isAdmin && asEmployee && (
-        <div className="banner info">
-          You're viewing the app <b>as an employee</b> with your own account.
-        </div>
+        <div className="banner info">{t('shell.viewingAsEmployee')}</div>
       )}
 
       {showEmployee ? <EmployeeDashboard profile={profile} /> : <ManagerDashboard profile={profile} />}
 
       <p className="small muted" style={{ textAlign: 'center', marginTop: 20 }}>
-        The activity meter counts keyboard and clicks only while this window is focused (browser limitation).
+        {t('shell.focusNote')}
       </p>
 
       <ScreenshotToast />

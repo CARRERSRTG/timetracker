@@ -5,10 +5,12 @@ import {
 } from '../lib/helpers.js';
 import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity } from '../lib/desktop.js';
 import { notify } from '../lib/notify.js';
+import { useT } from '../lib/i18n.js';
 
 const METER_BARS = 20; // rolling activity window shown as bars
 
 export default function Tracker({ profile, user, assignments, sessions }) {
+  const t = useT();
   const trackMode = effTrackMode(user || profile);
   const breaksOn = effBreaks(user || profile);
   const isInOut = trackMode === 'inout';
@@ -77,10 +79,10 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     const usedSec = weekSecThisProj + worked;
     if (usedSec >= wLimitSec && !limitHitRef.current) {
       limitHitRef.current = true; nearHitRef.current = true;
-      notify({ title: 'Weekly limit reached', body: `You've reached your ${(wLimitSec / 3600).toFixed(2)} h weekly limit on ${selected.project.name}. Time above the limit isn't billable.`, tag: 'limit-' + selected.id });
+      notify({ title: t('notify.limitTitle'), body: t('notify.limitBody', { limit: (wLimitSec / 3600).toFixed(2), project: selected.project.name }), tag: 'limit-' + selected.id });
     } else if (usedSec >= wLimitSec * 0.9 && usedSec < wLimitSec && !nearHitRef.current) {
       nearHitRef.current = true;
-      notify({ title: 'Approaching weekly limit', body: `You're at ${(usedSec / 3600).toFixed(2)} of ${(wLimitSec / 3600).toFixed(2)} h on ${selected.project.name}.`, tag: 'near-' + selected.id });
+      notify({ title: t('notify.nearTitle'), body: t('notify.nearBody', { used: (usedSec / 3600).toFixed(2), limit: (wLimitSec / 3600).toFixed(2), project: selected.project.name }), tag: 'near-' + selected.id });
     }
   }, [worked, weekSecThisProj, selected, wLimitSec]);
   useEffect(() => { try { if (assignmentId) localStorage.setItem(LS_A, assignmentId); } catch { /* ignore */ } }, [assignmentId]); // eslint-disable-line
@@ -275,26 +277,26 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     if (sessionIdRef.current) sessionsApi.update(sessionIdRef.current, { breakEvents: breakEventsPayload() }).catch(() => {});
   }
 
-  const startLabel = isInOut ? '▶ Clock in' : '▶ Start';
-  const stopLabel = isInOut ? '■ Clock out' : '■ Stop';
+  const startLabel = isInOut ? t('track.clockIn') : t('track.start');
+  const stopLabel = isInOut ? t('track.clockOut') : t('track.stop');
 
   return (
     <>
       {assignments.length === 0 && (
-        <div className="banner info">You have no projects assigned yet. Ask your manager to assign one.</div>
+        <div className="banner info">{t('track.noProjects')}</div>
       )}
       <div className="card">
         <div className="between">
-          <h2 style={{ margin: 0 }}>Track time</h2>
+          <h2 style={{ margin: 0 }}>{t('track.title')}</h2>
           {running && IS_DESKTOP && (
             <span className="chip" style={{ background: '#3a2a12', color: '#ffcf8f' }}>
-              🖥 Screenshots on · every {shotMin} min
+              {t('track.screenshotsOn', { n: shotMin })}
             </span>
           )}
-          <span className="chip">{effWorkerType(user || profile) === 'remote' ? 'Remote' : 'In-house'}</span>
+          <span className="chip">{effWorkerType(user || profile) === 'remote' ? t('track.remote') : t('track.inhouse')}</span>
         </div>
 
-        <label style={{ marginTop: 12 }}>Project</label>
+        <label style={{ marginTop: 12 }}>{t('track.project')}</label>
         <div className="pbtns">
           {assignments.map((a) => (
             <button
@@ -312,14 +314,14 @@ export default function Tracker({ profile, user, assignments, sessions }) {
           ))}
         </div>
 
-        <label style={{ marginTop: 14 }}>Note / memo (what you're working on)</label>
-        <input value={memo} disabled={running} onChange={(e) => setMemo(e.target.value)} placeholder="e.g. designing the login screen" />
+        <label style={{ marginTop: 14 }}>{t('track.memoLabel')}</label>
+        <input value={memo} disabled={running} onChange={(e) => setMemo(e.target.value)} placeholder={t('track.memoPlaceholder')} />
 
         {selected && wLimitSec !== Infinity && (
           <LimitBar usedSec={weekSecThisProj + worked} limitHours={Number(selected.weeklyLimit)} />
         )}
         {overLimit && (
-          <div className="banner warn">You'll go over the weekly limit. Time above the limit is not billable.</div>
+          <div className="banner warn">{t('track.overWarning')}</div>
         )}
 
         <div className="hr" />
@@ -329,8 +331,8 @@ export default function Tracker({ profile, user, assignments, sessions }) {
             <div className="timer-big">{fmtClock(worked)}</div>
             <div className="small muted">
               {running
-                ? isIdle ? '⏸ Idle — not counting' : onBreak === 'lunch' ? '🍽 On lunch…' : onBreak === 'break' ? '☕ On break…' : isInOut ? 'Clocked in' : 'Running…'
-                : 'Stopped'}
+                ? isIdle ? t('track.idle') : onBreak === 'lunch' ? t('track.onLunch') : onBreak === 'break' ? t('track.onBreak') : isInOut ? t('track.clockedIn') : t('track.running')
+                : t('track.stopped')}
               {running && (lunchRef.current > 0 || brkRef.current > 0)
                 ? <> · lunch {fmtClock(breaks.lunch)} · break {fmtClock(breaks.brk)}</> : null}
             </div>
@@ -374,12 +376,12 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
         {running && (
           <div className="grid g4" style={{ marginTop: 14 }}>
-            <div className="stat"><div className="n">{fmtTime(startMsRef.current)}</div><div className="l">Started</div></div>
-            <div className="stat"><div className="n">{fmtHrs(worked)}</div><div className="l">Worked</div></div>
-            <div className="stat"><div className="n">{activePct}%</div><div className="l">Activity</div></div>
-            <div className="stat"><div className="n">{fmtClock(breaks.lunch + breaks.brk)}</div><div className="l">Lunch + break</div></div>
+            <div className="stat"><div className="n">{fmtTime(startMsRef.current)}</div><div className="l">{t('track.started')}</div></div>
+            <div className="stat"><div className="n">{fmtHrs(worked)}</div><div className="l">{t('track.worked')}</div></div>
+            <div className="stat"><div className="n">{activePct}%</div><div className="l">{t('track.activity')}</div></div>
+            <div className="stat"><div className="n">{fmtClock(breaks.lunch + breaks.brk)}</div><div className="l">{t('track.lunchBreak')}</div></div>
             {idleRef.current > 0 && (
-              <div className="stat"><div className="n">{fmtClock(idleRef.current)}</div><div className="l">Idle (excluded)</div></div>
+              <div className="stat"><div className="n">{fmtClock(idleRef.current)}</div><div className="l">{t('track.idleExcluded')}</div></div>
             )}
           </div>
         )}
@@ -392,6 +394,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
 // Weekly hour-limit progress bar. Green under 80%, amber 80–100%, red over.
 function LimitBar({ usedSec, limitHours }) {
+  const t = useT();
   const usedH = usedSec / 3600;
   const pct = Math.min(100, (usedH / limitHours) * 100);
   const over = usedH > limitHours;
@@ -401,11 +404,11 @@ function LimitBar({ usedSec, limitHours }) {
   return (
     <div style={{ marginTop: 12 }}>
       <div className="row between" style={{ marginBottom: 4 }}>
-        <span className="small muted">Weekly limit on this project</span>
+        <span className="small muted">{t('track.weeklyLimitOn')}</span>
         <span className="small">
           <b>{usedH.toFixed(2)} h</b> / {limitHours.toFixed(2)} h
-          {over ? <span className="pill off" style={{ marginLeft: 6 }}>over</span>
-            : <span className="muted"> · {remaining.toFixed(2)} h left</span>}
+          {over ? <span className="pill off" style={{ marginLeft: 6 }}>{t('track.over')}</span>
+            : <span className="muted"> · {t('track.left', { h: remaining.toFixed(2) })}</span>}
         </span>
       </div>
       <div style={{ background: 'var(--line)', borderRadius: 999, height: 10, overflow: 'hidden' }}>

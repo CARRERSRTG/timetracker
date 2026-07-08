@@ -7,6 +7,7 @@ import {
   requests as requestsApi,
 } from '@shared/lib/supabase.js';
 import { notify } from '../lib/notify.js';
+import { t } from '../lib/i18n.js';
 import Tracker from '../employee/Tracker.jsx';
 import EmployeeWeek from '../employee/EmployeeWeek.jsx';
 import MyAccount from '../employee/MyAccount.jsx';
@@ -38,7 +39,7 @@ export default function ManagerDashboard({ profile }) {
       requests.forEach((r) => {
         if (r.status === 'pending' && !seen.has(r.id)) {
           const who = r.payload?.employeeName || 'An employee';
-          notify({ title: 'New time request', body: `${who} filed a ${r.type} request needing approval.`, tag: 'newreq-' + r.id });
+          notify({ title: t('notify.newReqTitle'), body: t('notify.newReqBody', { who, type: t('reqtype.' + r.type) }), tag: 'newreq-' + r.id });
         }
       });
     }
