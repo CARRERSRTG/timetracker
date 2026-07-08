@@ -328,6 +328,13 @@ export default function ManagerReports({ profile, users, projects, assignments }
                       {s.memo || '—'}
                       {s.source === 'adjusted' ? <span className="pill wait" style={{ marginLeft: 6 }}>adjusted</span> : s.source === 'manual' ? <span className="pill on" style={{ marginLeft: 6 }}>added</span> : null}
                       {breaksText(s) && <div className="small muted" style={{ marginTop: 2 }}>{breaksText(s)}</div>}
+                      {((s.activeSeconds || 0) + (s.idleSeconds || 0)) > 0 && (
+                        <div className="small muted" style={{ marginTop: 2 }}>
+                          ⌨ {fmtClock(Math.max(0, (s.activeSeconds || 0) - (s.screenSeconds || 0)))} input
+                          {(s.screenSeconds || 0) > 0 ? <> · 🖥 {fmtClock(s.screenSeconds)} screen</> : null}
+                          {(s.idleSeconds || 0) > 0 ? <> · 💤 {fmtClock(s.idleSeconds)} idle</> : null}
+                        </div>
+                      )}
                     </td>
                     <td className="right small nowrap">
                       {fmtClock(s.durationSeconds)}
