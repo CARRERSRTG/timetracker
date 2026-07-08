@@ -37,7 +37,7 @@
       "icon": "build/icon.ico"
     },
     "publish": [
-      { "provider": "github", "owner": "RDZTileGroup", "repo": "timetracker" }
+      { "provider": "github", "owner": "CARRERSRTG", "repo": "timetracker" }
     ],
     "nsis": {
       "oneClick": false,

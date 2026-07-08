@@ -1,9 +1,9 @@
 # Releasing the desktop app + turning on auto-update
 
-Follow this on your **Windows machine** (not needed for the web app). Replace
-`<YOUR-USERNAME>` with your GitHub username and keep the repo name `timetracker`
-(or change both consistently). Auto-update is already wired in the code; these
-steps give it a release feed to check against.
+Follow this on your **Windows machine** (not needed for the web app). This is
+already configured for GitHub user **`CARRERSRTG`** and repo **`timetracker`**
+(see `desktop/package.json` → `build.publish`). Auto-update is wired in the code;
+these steps give it a release feed to check against.
 
 ---
 
@@ -23,7 +23,7 @@ Open **PowerShell** in the project folder
 (`C:\Users\andre\Documents\claude code work RTG\timetracker`) and run:
 
 ```powershell
-git remote add origin https://github.com/<YOUR-USERNAME>/timetracker.git
+git remote add origin https://github.com/CARRERSRTG/timetracker.git
 git branch -M main
 git push -u origin main
 ```
@@ -63,7 +63,7 @@ What this does:
 - Builds the web UI, packages the Windows app, and **uploads** the installer
   (`Time Tracker Setup 0.0.0.exe`) plus a `latest.yml` manifest to a **GitHub
   Release** tagged `v0.0.0`.
-- Check <https://github.com/<YOUR-USERNAME>/timetracker/releases> — you'll see it.
+- Check <https://github.com/CARRERSRTG/timetracker/releases> — you'll see it.
 
 Hand that `.exe` to your employees to install. This is the full build (screenshots
 + global keystrokes + smart idle — all native modules included, because your
