@@ -50,6 +50,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const nearHitRef = useRef(false);     // already notified about nearing the limit?
   const idleStreakRef = useRef(0);      // consecutive seconds with no input
   const idleRef = useRef(0);            // total seconds excluded as idle
+  const screenSecRef = useRef(0);       // seconds credited via on-screen activity
   const ctxRef = useRef(null);          // last {app,title,movement} probe
   const ctxProbeRef = useRef(0);        // countdown to next context probe
   const [isIdle, setIsIdle] = useState(false);
@@ -138,7 +139,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
     secHadEventRef.current = false; lastActTotalRef.current = 0;
     idleStreakRef.current = 0; idleRef.current = 0; setIsIdle(false);
-    ctxRef.current = null; ctxProbeRef.current = 0; setCtxApp('');
+    ctxRef.current = null; ctxProbeRef.current = 0; setCtxApp(''); screenSecRef.current = 0;
     startMsRef.current = Date.now();
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
     setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
@@ -221,7 +222,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
             const hay = ((c.app || '') + ' ' + (c.title || '')).toLowerCase();
             const isWork = hay.trim() && workApps.some((k) => hay.includes(String(k).toLowerCase()));
             const moving = (c.movement || 0) >= MOVEMENT_THRESHOLD;
-            if (isWork && moving) { productiveNow = true; appLabel = c.app || c.title || ''; }
+            if (isWork && moving) { productiveNow = true; appLabel = c.app || c.title || ''; screenSecRef.current += 1; }
             else { idleRef.current += 1; idleNow = true; }
           } else {
             idleRef.current += 1; idleNow = true;
@@ -240,12 +241,17 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       setActivePct(net > 0 ? Math.round((activeSecondsRef.current / net) * 100) : 0);
       setMeter((prev) => { const m = prev.slice(1); m.push(activeThisSec); return m; });
 
+      // short live status for the manager's "Working now" monitor
+      const liveNote = onBreakRef.current ? 'break' : productiveNow ? (appLabel || 'screen') : idleNow ? 'idle' : 'active';
+
       if (el > 0 && el % 10 === 0 && sessionIdRef.current) {
         writeSession(sessionIdRef.current, {
           endMs: Date.now(),
           durationSeconds: net,
           activeSeconds: activeSecondsRef.current,
           idleSeconds: idleRef.current,
+          screenSeconds: screenSecRef.current,
+          liveNote,
           keystrokes: keystrokesRef.current,
           clicks: clicksRef.current,
           lunchSeconds: lunchRef.current,
@@ -274,6 +280,8 @@ export default function Tracker({ profile, user, assignments, sessions }) {
           durationSeconds: net,
           activeSeconds: activeSecondsRef.current,
           idleSeconds: idleRef.current,
+          screenSeconds: screenSecRef.current,
+          liveNote: null,
           keystrokes: keystrokesRef.current,
           clicks: clicksRef.current,
           lunchSeconds: lunchRef.current,

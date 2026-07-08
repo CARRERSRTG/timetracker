@@ -297,6 +297,10 @@ alter table public.payrolls    add column if not exists session_count integer de
 
 -- idle time excluded from a session's counted duration (Upwork-style)
 alter table public.sessions    add column if not exists idle_seconds  integer default 0;
+-- smart-idle: seconds credited from on-screen activity (meeting/reading), and a
+-- short live status the manager's "Working now" monitor shows
+alter table public.sessions    add column if not exists screen_seconds integer default 0;
+alter table public.sessions    add column if not exists live_note      text;
 
 -- ---------------------------------------------------------------------
 -- Close open registration: employees start INACTIVE (pending) and must be
