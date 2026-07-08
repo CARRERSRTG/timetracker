@@ -13,6 +13,16 @@ try {
   console.error('uiohook-napi unavailable — global input metering disabled:', e.message);
 }
 
+// Auto-update (packaged builds only). Requires a configured `publish` target in
+// package.json and a matching release; no-ops in dev and if the module/binary
+// is missing.
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+} catch (e) {
+  console.error('electron-updater unavailable — auto-update disabled:', e.message);
+}
+
 let mainWindow = null;
 
 // activity counters (system-wide, accumulated for the current session)
@@ -105,7 +115,13 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // only check for updates in a packaged app (not when loading the dev server)
+  if (autoUpdater && !process.env.TT_DEV_URL && app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error('update check failed:', e.message));
+  }
+});
 
 app.on('window-all-closed', () => {
   stopHook();
