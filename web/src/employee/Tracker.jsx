@@ -372,6 +372,11 @@ export default function Tracker({ profile, user, assignments, sessions }) {
                 {meter.map((on, i) => <i key={i} className={on ? 'on' : ''} />)}
               </div>
             )}
+            {running && !onBreak && (
+              <div className="small muted" style={{ marginTop: 6, maxWidth: 320 }}>
+                {ctxApp ? t('track.srcScreen', { app: ctxApp }) : isIdle ? t('track.srcIdle') : t('track.srcInput')}
+              </div>
+            )}
           </div>
           <div className="right">
             {!running
