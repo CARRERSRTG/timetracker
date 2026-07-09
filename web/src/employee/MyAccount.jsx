@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { profiles as profilesApi } from '@shared/lib/supabase.js';
+import { profiles as profilesApi, auth } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, effWorkerType, effTrackMode, effBreaks } from '../lib/helpers.js';
 
 export default function MyAccount({ me }) {
@@ -61,7 +61,38 @@ export default function MyAccount({ me }) {
         <span className="chip">{tm === 'activity' ? 'Activity tracking' : 'Clock in / out only'}</span>
         <span className="chip">{br ? 'Lunch & break: on' : 'Lunch & break: off'}</span>
       </div>
+      <ChangePassword />
     </div>
+  );
+}
+
+function ChangePassword() {
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setMsg(''); setErr('');
+    if (pw.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    if (pw !== pw2) { setErr('Passwords do not match.'); return; }
+    setBusy(true);
+    try { await auth.updatePassword(pw); setPw(''); setPw2(''); setMsg('Password updated.'); }
+    catch (e) { setErr(e.message || 'Could not update password.'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <>
+      <div className="hr" />
+      <h3 style={{ color: 'var(--muted)' }}>Change password</h3>
+      {msg && <div className="banner ok">{msg}</div>}
+      {err && <div className="banner err">{err}</div>}
+      <div className="grid g2">
+        <div><label>New password</label><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="••••••••" /></div>
+        <div><label>Confirm password</label><input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="••••••••" onKeyDown={(e) => e.key === 'Enter' && save()} /></div>
+      </div>
+      <button style={{ marginTop: 12 }} disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Update password'}</button>
+    </>
   );
 }
 

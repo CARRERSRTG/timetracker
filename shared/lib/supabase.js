@@ -32,6 +32,7 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
 });
 
 export const DEFAULT_SETTINGS = {
+  appName: 'TimeTracker',
   currency: '$',
   weekStartDay: 6,
   payPeriod: 'weekly',
@@ -116,6 +117,27 @@ export const auth = {
   async resetPassword(email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
     if (error) throw error;
+  },
+
+  async updatePassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
+  // Admin creates a user without losing their own session: sign the new user up
+  // on a throwaway client (no persistence). Supabase emails them a confirmation;
+  // the trigger creates their profile as pending until an admin activates it.
+  async adminCreateUser({ email, name, password }) {
+    const tmp = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: 'tt-admin-invite' },
+    });
+    const { data, error } = await tmp.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { name: (name || '').trim() } },
+    });
+    if (error) throw error;
+    return data;
   },
 
   async getSession() {

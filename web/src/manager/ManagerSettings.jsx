@@ -14,6 +14,7 @@ export default function ManagerSettings() {
   const [adjTypes, setAdjTypes] = useState((APP_SETTINGS.adjustmentTypes || []).join(', '));
   const [shotMin, setShotMin] = useState(APP_SETTINGS.screenshotIntervalMin ?? 10);
   const [idleMin, setIdleMin] = useState(APP_SETTINGS.idleLimitMin ?? 5);
+  const [appName, setAppName] = useState(APP_SETTINGS.appName || 'TimeTracker');
   const [smartIdle, setSmartIdle] = useState(APP_SETTINGS.smartIdle !== false);
   const [workApps, setWorkApps] = useState((APP_SETTINGS.workApps || []).join(', '));
   const [wtype, setWtype] = useState(APP_SETTINGS.defaultWorkerType);
@@ -36,6 +37,7 @@ export default function ManagerSettings() {
     const list = methods.split(',').map((s) => s.trim()).filter(Boolean);
     const alist = adjTypes.split(',').map((s) => s.trim()).filter(Boolean);
     await settingsApi.update({
+      appName: appName.trim() || 'TimeTracker',
       currency: cur.trim() || '$',
       timeZone: tz,
       weekStartDay: Number(wsd),
@@ -112,6 +114,10 @@ export default function ManagerSettings() {
       <h2>Settings</h2>
       {saved && <div className="banner ok">Saved. Applies across the app.</div>}
 
+      <label>App name (shown in the top bar)</label>
+      <input value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="TimeTracker" />
+
+      <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>Company (shown on receipts)</h3>
       <label>Company name</label>
       <input value={co.name} onChange={(e) => upCo('name', e.target.value)} placeholder="El Lechón Ardiente S. de R.L." />

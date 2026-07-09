@@ -17,6 +17,7 @@ export const TZ_LIST = [
 // Global mutable settings, mirrored from the settings subscription (see
 // syncAppSettings). Helpers read currency / weekStartDay / timeZone from here.
 export let APP_SETTINGS = {
+  appName: 'TimeTracker',
   currency: '$',
   timeZone: BROWSER_TZ,
   weekStartDay: 6, // 0=Sun ... 6=Sat (default Saturday)

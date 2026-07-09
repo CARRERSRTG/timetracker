@@ -9,6 +9,7 @@ import { useT } from '../lib/i18n.js';
 
 const METER_BARS = 20; // rolling activity window shown as bars
 const MOVEMENT_THRESHOLD = 0.02; // ≥2% of the sampled screen changed = "moving"
+const ACTIVE_WINDOW_SEC = 12;    // one input keeps you "active" this many seconds (gentler meter)
 
 export default function Tracker({ profile, user, assignments, sessions }) {
   const t = useT();
@@ -48,7 +49,8 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const lastActTotalRef = useRef(0);    // last keystrokes+clicks total (desktop delta)
   const limitHitRef = useRef(false);    // already notified about hitting the limit?
   const nearHitRef = useRef(false);     // already notified about nearing the limit?
-  const idleStreakRef = useRef(0);      // consecutive seconds with no input
+  const idleStreakRef = useRef(0);      // consecutive seconds with no activity
+  const activeWindowRef = useRef(0);    // seconds left in the current "active" window
   const idleRef = useRef(0);            // total seconds excluded as idle
   const screenSecRef = useRef(0);       // seconds credited via on-screen activity
   const ctxRef = useRef(null);          // last {app,title,movement} probe
@@ -197,6 +199,11 @@ export default function Tracker({ profile, user, assignments, sessions }) {
         hadEvent = secHadEventRef.current;
         secHadEventRef.current = false;
       }
+      // Gentler meter: any input keeps you "active" for a short window, so short
+      // pauses (reading, thinking) still count as activity.
+      if (hadEvent) activeWindowRef.current = ACTIVE_WINDOW_SEC;
+      const windowedActive = activeWindowRef.current > 0;
+      if (activeWindowRef.current > 0) activeWindowRef.current -= 1;
       // Idle detection: after idleLimit seconds of no input (and not on break),
       // stop counting — UNLESS smart idle recognizes real screen activity in a
       // work app (a meeting, reading, a video, code appearing), which counts and
@@ -206,7 +213,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       let appLabel = '';
       if (onBreakRef.current) {
         idleStreakRef.current = 0;
-      } else if (hadEvent) {
+      } else if (windowedActive) {
         idleStreakRef.current = 0;
       } else {
         idleStreakRef.current++;
@@ -230,7 +237,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
         }
       }
 
-      const activeThisSec = (hadEvent || productiveNow) && !onBreakRef.current;
+      const activeThisSec = (windowedActive || productiveNow) && !onBreakRef.current;
       if (activeThisSec) activeSecondsRef.current += 1;
       if (idleNow !== isIdle) setIsIdle(idleNow);
       if (appLabel !== ctxApp) setCtxApp(appLabel);

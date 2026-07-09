@@ -15,6 +15,7 @@ export default function App() {
   const [user, setUser] = useState(undefined); // undefined = booting, null = signed out
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState('');
+  const [appName, setAppName] = useState('TimeTracker');
   const profileRef = useRef(null);
   profileRef.current = profile;
 
@@ -34,7 +35,7 @@ export default function App() {
   // keep the global helper settings (currency, week start, timezone) in sync
   useEffect(() => {
     if (!user) return;
-    return settingsApi.subscribe(syncAppSettings);
+    return settingsApi.subscribe((s) => { syncAppSettings(s); setAppName(s.appName || 'TimeTracker'); });
   }, [user]);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export default function App() {
   if (!user) return <AuthScreen />;
   if (!profile) return <BootScreen label={profileError || 'Setting up your account…'} onSignOut={() => auth.signOut()} />;
 
-  return <Shell profile={profile} onSignOut={() => auth.signOut()} />;
+  return <Shell profile={profile} appName={appName} onSignOut={() => auth.signOut()} />;
 }
 
 function BootScreen({ label, onSignOut }) {
@@ -99,7 +100,7 @@ function ConfigNotice() {
   );
 }
 
-function Shell({ profile, onSignOut }) {
+function Shell({ profile, appName, onSignOut }) {
   const t = useT();
   const isAdmin = profile.role === 'admin';
   const [asEmployee, setAsEmployee] = useState(false);
@@ -107,7 +108,7 @@ function Shell({ profile, onSignOut }) {
   return (
     <div className="wrap">
       <div className="topbar">
-        <div className="brand">Time<span>{t('brand.suffix')}</span></div>
+        <div className="brand">{appName || 'TimeTracker'}</div>
         <div className="row" style={{ alignItems: 'center' }}>
           <span className="small muted nowrap">{profile.name}</span>
           <span className={'chip ' + (isAdmin ? 'tag-admin' : 'tag-emp')}>
