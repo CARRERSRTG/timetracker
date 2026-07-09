@@ -1,29 +1,21 @@
 import { useEffect, useState } from 'react';
-import { screenshots as screenshotsApi } from '@shared/lib/supabase.js';
-import { fmtDT, weekStartISO, weekLabel } from '../lib/helpers.js';
+import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
+import { weekStartISO, weekLabel, dateISO } from '../lib/helpers.js';
+import WorkDiary from '../WorkDiary.jsx';
 
-// Manager screenshot gallery: collapsible per employee, then per pay week, with
-// an Upwork-style activity bar under each shot. Private bucket → signed URLs.
+// Manager Work Diary: collapsible per employee, then per pay week, with Upwork-
+// style session blocks + segmented activity bars.
 export default function Screenshots({ users }) {
   const [shots, setShots] = useState([]);
-  const [urls, setUrls] = useState({});
+  const [sessions, setSessions] = useState([]);
   const [purgeMsg, setPurgeMsg] = useState('');
   const [purging, setPurging] = useState(false);
 
-  useEffect(() => screenshotsApi.subscribeRecent(300, setShots), []);
-
+  useEffect(() => screenshotsApi.subscribeRecent(500, setShots), []);
   useEffect(() => {
-    let cancelled = false;
-    const missing = shots.filter((s) => s.path && !urls[s.path]);
-    if (!missing.length) return;
-    Promise.all(missing.map(async (s) => {
-      try { return [s.path, await screenshotsApi.signedUrl(s.path, 3600)]; } catch { return [s.path, null]; }
-    })).then((pairs) => {
-      if (cancelled) return;
-      setUrls((prev) => { const next = { ...prev }; pairs.forEach(([p, u]) => { if (u) next[p] = u; }); return next; });
-    });
-    return () => { cancelled = true; };
-  }, [shots]); // eslint-disable-line react-hooks/exhaustive-deps
+    const start = dateISO(Date.now() - 15 * 86400000); // last ~2 weeks for memo/time ranges
+    return sessionsApi.subscribeFromDate(start, setSessions);
+  }, []);
 
   async function purge() {
     if (!confirm('Delete all screenshots older than 14 days? This frees storage and cannot be undone.')) return;
@@ -36,6 +28,7 @@ export default function Screenshots({ users }) {
   }
 
   const uMap = {}; users.forEach((u) => { uMap[u.id] = u; });
+  const sessMap = {}; sessions.forEach((s) => { sessMap[s.id] = s; });
 
   // group: employee -> week -> shots
   const byEmp = {};
@@ -46,25 +39,10 @@ export default function Screenshots({ users }) {
   });
   const empIds = Object.keys(byEmp).sort((a, b) => (uMap[a]?.name || '').localeCompare(uMap[b]?.name || ''));
 
-  function Shot({ s }) {
-    const url = urls[s.path];
-    const pct = Math.max(0, Math.min(100, s.activityPercent || 0));
-    const color = pct >= 60 ? 'var(--accent2)' : pct >= 25 ? 'var(--warn)' : 'var(--danger)';
-    return (
-      <div className="shot">
-        <a href={url || undefined} target="_blank" rel="noopener noreferrer">
-          {url ? <img src={url} loading="lazy" alt="screenshot" /> : <div className="shot-loading" />}
-        </a>
-        <div className="actbar" title={`Activity ${pct}%`}><i style={{ width: pct + '%', background: color }} /></div>
-        <div className="small muted">{s.takenAt ? fmtDT(new Date(s.takenAt).getTime(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '…'} · {pct}%</div>
-      </div>
-    );
-  }
-
   return (
     <div className="card">
       <div className="between">
-        <h2 style={{ margin: 0 }}>Screenshots</h2>
+        <h2 style={{ margin: 0 }}>Work diary</h2>
         <button className="btn-ghost btn-sm" disabled={purging} onClick={purge}>🗑 Delete &gt; 14 days old</button>
       </div>
       {purgeMsg && <div className="banner info" style={{ marginTop: 10 }}>{purgeMsg}</div>}
@@ -76,7 +54,7 @@ export default function Screenshots({ users }) {
         const total = weeks.reduce((n, w) => n + byEmp[emp][w].length, 0);
         return (
           <details key={emp} open style={{ marginTop: 12 }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 15 }}>
               {uMap[emp]?.name || '—'} <span className="chip" style={{ marginLeft: 6 }}>{total}</span>
             </summary>
             {weeks.map((w) => (
@@ -84,16 +62,14 @@ export default function Screenshots({ users }) {
                 <summary style={{ cursor: 'pointer' }} className="small muted">
                   {weekLabel(w)} · {byEmp[emp][w].length} shots
                 </summary>
-                <div className="shotgrid">
-                  {byEmp[emp][w].slice().sort((a, b) => new Date(b.takenAt || 0) - new Date(a.takenAt || 0)).map((s) => <Shot key={s.id} s={s} />)}
-                </div>
+                <WorkDiary shots={byEmp[emp][w]} sessionsMap={sessMap} />
               </details>
             ))}
           </details>
         );
       })}
-      <p className="small muted" style={{ marginTop: 10 }}>
-        One shot per ~10-minute segment (max 6/hour) at a random time. The bar under each is that segment's keyboard/mouse activity.
+      <p className="small muted" style={{ marginTop: 14 }}>
+        One shot per ~10-minute segment (max 6/hour) at a random time. The bar under each shows that segment's keyboard/mouse activity.
       </p>
     </div>
   );

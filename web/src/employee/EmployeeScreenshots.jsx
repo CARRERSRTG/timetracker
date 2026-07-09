@@ -1,61 +1,50 @@
 import { useEffect, useState } from 'react';
-import { screenshots as screenshotsApi } from '@shared/lib/supabase.js';
-import { fmtDT } from '../lib/helpers.js';
+import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
+import { weekStartISO, weekLabel } from '../lib/helpers.js';
+import WorkDiary from '../WorkDiary.jsx';
 
-// Employees review their own screenshots and can delete any they're not
-// comfortable with (which discards that capture). RLS allows own-delete.
+// Employees see their own Work Diary and can delete a shot they're not
+// comfortable with (RLS allows own-delete).
 export default function EmployeeScreenshots({ profile }) {
   const [shots, setShots] = useState([]);
-  const [urls, setUrls] = useState({});
-  const [busy, setBusy] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => screenshotsApi.subscribeByEmployee(profile.id, setShots), [profile.id]);
+  useEffect(() => sessionsApi.subscribeByEmployee(profile.id, setSessions), [profile.id]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const missing = shots.filter((s) => s.path && !urls[s.path]);
-    if (!missing.length) return;
-    Promise.all(missing.map(async (s) => {
-      try { return [s.path, await screenshotsApi.signedUrl(s.path, 3600)]; } catch { return [s.path, null]; }
-    })).then((pairs) => {
-      if (cancelled) return;
-      setUrls((prev) => { const next = { ...prev }; pairs.forEach(([p, u]) => { if (u) next[p] = u; }); return next; });
-    });
-    return () => { cancelled = true; };
-  }, [shots]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sessMap = {}; sessions.forEach((s) => { sessMap[s.id] = s; });
 
   async function del(s) {
-    if (!confirm('Delete this screenshot? This removes it permanently.')) return;
-    setBusy(s.id);
+    if (busy) return;
+    if (!confirm('Delete this screenshot? This removes it permanently, for your manager too.')) return;
+    setBusy(true);
     try { await screenshotsApi.deleteWithFile({ id: s.id, path: s.path }); }
     catch (e) { alert('Could not delete: ' + (e.message || e)); }
-    finally { setBusy(null); }
+    finally { setBusy(false); }
   }
+
+  // group by week
+  const byWeek = {};
+  shots.forEach((s) => {
+    const wk = weekStartISO(s.date || (s.takenAt ? new Date(s.takenAt) : new Date()));
+    (byWeek[wk] = byWeek[wk] || []).push(s);
+  });
+  const weeks = Object.keys(byWeek).sort().reverse();
 
   return (
     <div className="card">
-      <h2>My screenshots</h2>
+      <h2>My work diary</h2>
       {shots.length === 0 ? (
         <p className="muted">No screenshots yet. They're captured while you track time on the desktop app.</p>
-      ) : (
-        <div className="shotgrid">
-          {shots.map((s) => {
-            const url = urls[s.path];
-            return (
-              <div key={s.id} className="shot" style={{ position: 'relative' }}>
-                {url ? <img src={url} loading="lazy" alt="screenshot" /> : <div className="shot-loading" />}
-                {(() => { const pct = Math.max(0, Math.min(100, s.activityPercent || 0)); const c = pct >= 60 ? 'var(--accent2)' : pct >= 25 ? 'var(--warn)' : 'var(--danger)'; return <div className="actbar" title={`Activity ${pct}%`}><i style={{ width: pct + '%', background: c }} /></div>; })()}
-                <div className="small muted">{s.takenAt ? fmtDT(new Date(s.takenAt).getTime(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '…'} · {s.activityPercent || 0}%</div>
-                <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 6 }} disabled={busy === s.id} onClick={() => del(s)}>
-                  {busy === s.id ? 'Deleting…' : 'Delete'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      ) : weeks.map((w) => (
+        <details key={w} open style={{ marginTop: 10 }}>
+          <summary style={{ cursor: 'pointer' }} className="small muted">{weekLabel(w)} · {byWeek[w].length} shots</summary>
+          <WorkDiary shots={byWeek[w]} sessionsMap={sessMap} onDelete={del} />
+        </details>
+      ))}
       <p className="small muted" style={{ marginTop: 10 }}>
-        Deleting a screenshot removes it for your manager too. Use this if a capture caught something private.
+        Deleting a screenshot removes it for your manager too. Use it if a capture caught something private.
       </p>
     </div>
   );
