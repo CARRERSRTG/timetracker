@@ -302,6 +302,12 @@ alter table public.sessions    add column if not exists idle_seconds  integer de
 alter table public.sessions    add column if not exists screen_seconds integer default 0;
 alter table public.sessions    add column if not exists live_note      text;
 
+-- activity level (0-100) captured with each screenshot, shown as an Upwork-style bar
+alter table public.screenshots add column if not exists activity_percent integer default 0;
+
+-- per-project pay-week start day (0=Sun..6=Sat); null = use the global setting
+alter table public.projects    add column if not exists week_start_day  integer;
+
 -- ---------------------------------------------------------------------
 -- Close open registration: employees start INACTIVE (pending) and must be
 -- activated by a manager. The first user (the manager) is active immediately.

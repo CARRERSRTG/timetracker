@@ -44,7 +44,8 @@ export default function EmployeeScreenshots({ profile }) {
             return (
               <div key={s.id} className="shot" style={{ position: 'relative' }}>
                 {url ? <img src={url} loading="lazy" alt="screenshot" /> : <div className="shot-loading" />}
-                <div className="small muted">{s.takenAt ? fmtDT(new Date(s.takenAt).getTime(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '…'}</div>
+                {(() => { const pct = Math.max(0, Math.min(100, s.activityPercent || 0)); const c = pct >= 60 ? 'var(--accent2)' : pct >= 25 ? 'var(--warn)' : 'var(--danger)'; return <div className="actbar" title={`Activity ${pct}%`}><i style={{ width: pct + '%', background: c }} /></div>; })()}
+                <div className="small muted">{s.takenAt ? fmtDT(new Date(s.takenAt).getTime(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '…'} · {s.activityPercent || 0}%</div>
                 <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 6 }} disabled={busy === s.id} onClick={() => del(s)}>
                   {busy === s.id ? 'Deleting…' : 'Delete'}
                 </button>

@@ -366,7 +366,7 @@ export const audit = {
 // screenshots — private storage bucket, path: <employeeUid>/<sessionId>/<ts>.jpg
 // ---------------------------------------------------------------------
 export const screenshots = {
-  async upload({ employeeUid, sessionId, blob, date }) {
+  async upload({ employeeUid, sessionId, blob, date, activityPercent }) {
     const path = `${employeeUid}/${sessionId || 'misc'}/${Date.now()}.jpg`;
     const { error: upErr } = await supabase.storage
       .from('screenshots')
@@ -374,7 +374,7 @@ export const screenshots = {
     if (upErr) throw upErr;
     const { data, error } = await supabase
       .from('screenshots')
-      .insert({ employee_uid: employeeUid, session_id: sessionId || null, path, date: date || null })
+      .insert({ employee_uid: employeeUid, session_id: sessionId || null, path, date: date || null, activity_percent: activityPercent || 0 })
       .select().single();
     if (error) throw error;
     return rowToCamel(data);

@@ -40,6 +40,18 @@ let hookRunning = false;
 let shotTimer = null;
 let currentSessionId = null;
 
+// per-screenshot segment activity: count distinct seconds with input in the
+// current 10-min segment, to show an Upwork-style activity bar on each shot.
+let segStartMs = 0;
+let segActiveSeconds = 0;
+let lastActiveSec = 0;
+let segmentMs = 10 * 60 * 1000;
+
+function markActive() {
+  const s = Math.floor(Date.now() / 1000);
+  if (s !== lastActiveSec) { lastActiveSec = s; segActiveSeconds++; }
+}
+
 function startHook() {
   if (!uIOhook || hookRunning) return;
   activity.keystrokes = 0;
@@ -59,12 +71,15 @@ function stopHook() {
 }
 
 if (uIOhook) {
-  uIOhook.on('keydown', () => { activity.keystrokes++; });
-  uIOhook.on('mousedown', () => { activity.clicks++; });
+  uIOhook.on('keydown', () => { activity.keystrokes++; markActive(); });
+  uIOhook.on('mousedown', () => { activity.clicks++; markActive(); });
 }
 
 async function captureAndSend() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  // activity % for this segment = distinct active seconds / seconds elapsed
+  const elapsedS = Math.max(1, Math.round((Date.now() - segStartMs) / 1000));
+  const activityPercent = Math.max(0, Math.min(100, Math.round((segActiveSeconds / elapsedS) * 100)));
   try {
     const display = screen.getPrimaryDisplay();
     const { width, height } = display.size;
@@ -76,25 +91,37 @@ async function captureAndSend() {
     if (!sources.length) return;
     const dataUrl = sources[0].thumbnail.toDataURL();
     // The renderer owns the authenticated Supabase client, so it does the upload.
-    mainWindow.webContents.send('tt:shot', { sessionId: currentSessionId, dataUrl });
+    mainWindow.webContents.send('tt:shot', { sessionId: currentSessionId, dataUrl, activityPercent });
   } catch (e) {
     console.error('Screenshot capture failed:', e.message);
   }
 }
 
+// Upwork-style cadence: exactly one screenshot per segment (default 10 min),
+// taken at a random moment inside the segment so it can't be predicted/gamed.
+function startSegment() {
+  segStartMs = Date.now();
+  segActiveSeconds = 0;
+  lastActiveSec = 0;
+  const delay = Math.floor(Math.random() * segmentMs); // random time within this segment
+  shotTimer = setTimeout(async () => {
+    await captureAndSend();
+    if (currentSessionId) startSegment(); // begin the next segment
+  }, delay);
+}
+
 ipcMain.handle('tt:start', (_evt, opts) => {
   const intervalMin = Math.max(1, Number(opts?.intervalMin) || 10);
+  segmentMs = intervalMin * 60 * 1000;
   currentSessionId = opts?.sessionId || null;
   startHook();
-  if (shotTimer) clearInterval(shotTimer);
-  // first shot shortly after start, then every intervalMin
-  setTimeout(captureAndSend, 5000);
-  shotTimer = setInterval(captureAndSend, intervalMin * 60 * 1000);
+  if (shotTimer) { clearTimeout(shotTimer); shotTimer = null; }
+  startSegment();
   return { ok: true };
 });
 
 ipcMain.handle('tt:stop', () => {
-  if (shotTimer) { clearInterval(shotTimer); shotTimer = null; }
+  if (shotTimer) { clearTimeout(shotTimer); shotTimer = null; }
   currentSessionId = null;
   stopHook();
   return { ok: true };

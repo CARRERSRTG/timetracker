@@ -44,6 +44,7 @@ export function initDesktopShots(getEmployeeUid) {
         sessionId: data.sessionId || null,
         blob,
         date: dateISO(at),
+        activityPercent: data.activityPercent || 0,
       });
       emitShot({ dataUrl: data.dataUrl, at, status: 'saved' });
     } catch (e) {

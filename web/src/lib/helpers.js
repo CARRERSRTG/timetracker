@@ -76,10 +76,11 @@ function shiftISO(iso, days) {
 
 export function dateISO(x) { return dateISOInTz(tzMs(x), APP_SETTINGS.timeZone); }
 
-export function weekStartISO(x) {
+export function weekStartISO(x, weekStartDay) {
+  const wsd = weekStartDay == null ? APP_SETTINGS.weekStartDay : Number(weekStartDay);
   const iso = typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)
     ? x : dateISOInTz(tzMs(x), APP_SETTINGS.timeZone);
-  const diff = (weekdayOfISO(iso) - APP_SETTINGS.weekStartDay + 7) % 7;
+  const diff = (weekdayOfISO(iso) - wsd + 7) % 7;
   return shiftISO(iso, -diff);
 }
 export function weekEndISO(startISO) { return shiftISO(startISO, 6); }

@@ -472,13 +472,14 @@ function TodayList({ sessions, assignments }) {
     <div className="card">
       <h2>Today</h2>
       <table>
-        <thead><tr><th>Project</th><th>Note</th><th className="right">Duration</th></tr></thead>
+        <thead><tr><th>Project</th><th>In → Out</th><th>Note</th><th className="right">Duration</th></tr></thead>
         <tbody>
           {list.map((s) => {
             const a = aMap[s.assignmentId];
             return (
               <tr key={s.id}>
                 <td>{a ? a.project.name : '—'}</td>
+                <td className="small nowrap">{fmtTime(s.startMs)} → {s.endMs ? fmtTime(s.endMs) : '—'}</td>
                 <td className="muted">
                   {s.memo || '—'}
                   {s.source === 'manual' ? <span className="pill on" style={{ marginLeft: 6 }}>added</span>

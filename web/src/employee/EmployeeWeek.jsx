@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { payrolls as payrollsApi } from '@shared/lib/supabase.js';
 import {
-  fmtClock, fmtDT, money, breaksText, weekStartISO, thisWeekStart, addWeeks, weekLabel, computePay,
+  fmtClock, fmtDT, fmtTime, money, breaksText, weekStartISO, thisWeekStart, addWeeks, weekLabel, computePay,
 } from '../lib/helpers.js';
 
 // NOTE: schema stores the payroll amount in the `total` column (the original
@@ -89,13 +89,14 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
         <p className="muted small">No entries.</p>
       ) : (
         <table>
-          <thead><tr><th>Day</th><th>Project</th><th>Note</th><th className="right">Duration</th></tr></thead>
+          <thead><tr><th>Day</th><th>In → Out</th><th>Project</th><th>Note</th><th className="right">Duration</th></tr></thead>
           <tbody>
             {weekSessions.slice().sort((a, b) => (a.startMs || 0) - (b.startMs || 0)).map((s) => {
               const a = aMap[s.assignmentId];
               return (
                 <tr key={s.id}>
-                  <td className="small nowrap">{fmtDT(s.startMs, { weekday: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                  <td className="small nowrap">{fmtDT(s.startMs, { weekday: 'short', day: '2-digit' })}</td>
+                  <td className="small nowrap">{fmtTime(s.startMs)} → {s.endMs ? fmtTime(s.endMs) : '—'}</td>
                   <td className="small">{a ? a.project.name : '—'}</td>
                   <td className="small muted">
                     {s.memo || '—'}

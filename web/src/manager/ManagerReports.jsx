@@ -63,7 +63,8 @@ export default function ManagerReports({ profile, users, projects, assignments }
       const g = (byA[s.assignmentId] = byA[s.assignmentId] || { sec: 0, active: 0, weeks: {} });
       g.sec += s.durationSeconds || 0;
       g.active += s.activeSeconds || 0;
-      const w = weekStartISO(s.date);
+      const proj = pMap[aMap[s.assignmentId]?.projectId];
+      const w = weekStartISO(s.date, proj ? proj.weekStartDay : undefined);
       g.weeks[w] = (g.weeks[w] || 0) + (s.durationSeconds || 0);
     });
     let pay = 0, sec = 0;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { projects as projectsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
-import { APP_SETTINGS, money } from '../lib/helpers.js';
+import { APP_SETTINGS, DAYS, money } from '../lib/helpers.js';
 
 const PERIODS = [['weekly', 'Weekly'], ['biweekly', 'Biweekly'], ['monthly', 'Monthly']];
 const periodLabel = (v) => (PERIODS.find((p) => p[0] === v) || ['', '—'])[1];
@@ -8,7 +8,7 @@ const periodLabel = (v) => (PERIODS.find((p) => p[0] === v) || ['', '—'])[1];
 export default function ManagerProjects({ projects, assignments, users }) {
   const empty = {
     name: '', client: '', location: '',
-    payPeriod: APP_SETTINGS.payPeriod || 'weekly', category: '', positions: '',
+    payPeriod: APP_SETTINGS.payPeriod || 'weekly', category: '', positions: '', weekStartDay: '',
   };
   const [f, setF] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -26,6 +26,7 @@ export default function ManagerProjects({ projects, assignments, users }) {
     setF({
       name: p.name || '', client: p.client || '', location: p.location || '',
       payPeriod: p.payPeriod || 'weekly', category: p.category || '', positions: posText(p),
+      weekStartDay: p.weekStartDay == null ? '' : String(p.weekStartDay),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -37,6 +38,7 @@ export default function ManagerProjects({ projects, assignments, users }) {
     const data = {
       name: f.name.trim(), client: f.client.trim(), location: f.location.trim(),
       payPeriod: f.payPeriod, category: f.category.trim(), positions,
+      weekStartDay: f.weekStartDay === '' ? null : Number(f.weekStartDay),
     };
     if (editId) await projectsApi.update(editId, data);
     else await projectsApi.insert({ ...data, archived: false });
@@ -98,6 +100,16 @@ export default function ManagerProjects({ projects, assignments, users }) {
             </select>
           </div>
           <div><label>Positions (comma-separated)</label><input value={f.positions} onChange={(e) => upd('positions', e.target.value)} placeholder="e.g. Dispatcher, Sales rep" /></div>
+        </div>
+        <div className="grid g2">
+          <div>
+            <label>Pay week starts on</label>
+            <select value={f.weekStartDay} onChange={(e) => upd('weekStartDay', e.target.value)}>
+              <option value="">Use company default</option>
+              {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+            </select>
+          </div>
+          <div />
         </div>
         <div className="row" style={{ marginTop: 14 }}>
           <button onClick={save}>{editId ? 'Save changes' : 'Create project'}</button>
