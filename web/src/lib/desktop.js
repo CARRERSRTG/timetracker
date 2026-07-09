@@ -2,6 +2,7 @@
 // undefined and everything here no-ops.
 import { screenshots as screenshotsApi } from '@shared/lib/supabase.js';
 import { dateISO } from './helpers.js';
+import { queueShot } from './offlineQueue.js';
 
 export const IS_DESKTOP = !!(window.ttDesktop && window.ttDesktop.isDesktop);
 export const DESKTOP_SHOT_MIN = 10;
@@ -35,21 +36,24 @@ export function initDesktopShots(getEmployeeUid) {
     if (!data?.dataUrl) return;
     const at = Date.now();
     emitShot({ dataUrl: data.dataUrl, at, status: 'saving' });
+    const employeeUid = getEmployeeUid();
+    if (!employeeUid) { emitShot({ dataUrl: data.dataUrl, at, status: 'error' }); return; }
+    const rec = {
+      employeeUid,
+      sessionId: data.sessionId || null,
+      blob: dataUrlToBlob(data.dataUrl),
+      date: dateISO(at),
+      activityPercent: data.activityPercent || 0,
+    };
     try {
-      const employeeUid = getEmployeeUid();
-      if (!employeeUid) throw new Error('no employee uid');
-      const blob = dataUrlToBlob(data.dataUrl);
-      await screenshotsApi.upload({
-        employeeUid,
-        sessionId: data.sessionId || null,
-        blob,
-        date: dateISO(at),
-        activityPercent: data.activityPercent || 0,
-      });
+      if (!navigator.onLine) throw new Error('offline');
+      await screenshotsApi.upload(rec);
       emitShot({ dataUrl: data.dataUrl, at, status: 'saved' });
     } catch (e) {
-      console.error('screenshot upload failed', e);
-      emitShot({ dataUrl: data.dataUrl, at, status: 'error' });
+      // Offline or upload failed → buffer the image locally and sync later.
+      const queued = await queueShot(rec);
+      emitShot({ dataUrl: data.dataUrl, at, status: queued ? 'queued' : 'error' });
+      if (!queued) console.error('screenshot upload + queue failed', e);
     }
   });
 }

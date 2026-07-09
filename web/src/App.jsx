@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { configOk, auth, profiles, settings as settingsApi } from '@shared/lib/supabase.js';
 import { syncAppSettings } from './lib/helpers.js';
 import { initDesktopShots, IS_DESKTOP, desktopGetVersion } from './lib/desktop.js';
+import { initOfflineQueue, subscribeOfflineStatus } from './lib/offlineQueue.js';
 import { APP_VERSION } from './lib/version.js';
 import { ensureNotifyPermission } from './lib/notify.js';
 import { useT } from './lib/i18n.js';
@@ -23,6 +24,10 @@ export default function App() {
   // desktop: register the screenshot upload handler once; it reads the current
   // employee uid at fire time (no-op in the web build)
   useEffect(() => { initDesktopShots(() => profileRef.current?.id); }, []);
+
+  // offline buffering: flush any queued session updates / screenshots on
+  // reconnect (works on web too; most valuable on the desktop app)
+  useEffect(() => { initOfflineQueue(); }, []);
 
   // ask for OS-notification permission once signed in
   useEffect(() => { if (user) ensureNotifyPermission(); }, [user]);
@@ -147,6 +152,32 @@ function Shell({ profile, appName, onSignOut }) {
 
       <ScreenshotToast />
       <NotificationToast />
+      <OfflineIndicator />
+    </div>
+  );
+}
+
+// Small honest status pill: shown only when offline or when items are still
+// waiting to sync. Fixed to the bottom-left so it never blocks content.
+function OfflineIndicator() {
+  const [s, setS] = useState({ online: true, sessions: 0, shots: 0, total: 0 });
+  useEffect(() => subscribeOfflineStatus(setS), []);
+  if (s.online && s.total === 0) return null;
+  const parts = [];
+  if (s.sessions) parts.push(s.sessions + ' time' + (s.sessions > 1 ? ' updates' : ' update'));
+  if (s.shots) parts.push(s.shots + ' screenshot' + (s.shots > 1 ? 's' : ''));
+  const queued = parts.join(' + ');
+  return (
+    <div style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 9997, maxWidth: 320 }}
+      className="box" title="Your work is saved on this device and will upload automatically.">
+      <div className="small" style={{ fontWeight: 700 }}>
+        {s.online ? '🔄 Syncing…' : '⚠ Offline'}
+      </div>
+      <div className="small muted">
+        {s.total > 0
+          ? `${queued} saved on this device — will sync ${s.online ? 'now' : 'when you\'re back online'}.`
+          : 'No connection. Your tracked time is still being recorded locally.'}
+      </div>
     </div>
   );
 }

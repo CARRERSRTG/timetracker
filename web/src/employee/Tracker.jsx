@@ -4,6 +4,7 @@ import {
   APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
 import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower } from '../lib/desktop.js';
+import { queueSession } from '../lib/offlineQueue.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
 
@@ -145,14 +146,20 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     return breakEventsRef.current.map((e) => ({ kind: e.kind, start: e.start, end: e.end || null }));
   }
 
-  // Persist a session update, retrying a couple of times on transient failures
-  // (flaky network) so a dropped tick doesn't lose time. Best-effort.
+  // Persist a session update. Retries a couple of times on transient failures;
+  // if we're offline (or every retry fails) the patch is buffered locally and
+  // synced on reconnect — so a dropped connection never loses tracked time.
+  // The tracker keeps counting from local refs regardless of network, so the
+  // buffered patch always carries the full up-to-date duration.
   async function writeSession(id, patch, tries = 3) {
-    for (let i = 0; i < tries; i++) {
-      try { await sessionsApi.update(id, patch); return true; }
-      catch { await new Promise((r) => setTimeout(r, 500 * (i + 1))); }
+    if (navigator.onLine) {
+      for (let i = 0; i < tries; i++) {
+        try { await sessionsApi.update(id, patch); return true; }
+        catch { await new Promise((r) => setTimeout(r, 500 * (i + 1))); }
+      }
     }
-    return false;
+    queueSession(id, patch);
+    return 'queued';
   }
 
   async function start() {

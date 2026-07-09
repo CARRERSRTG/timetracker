@@ -23,15 +23,17 @@ export default function ScreenshotToast() {
   if (!toast) return null;
 
   const label = toast.status === 'saved' ? 'Screenshot captured'
+    : toast.status === 'queued' ? 'Saved offline — will upload when back online'
     : toast.status === 'error' ? 'Screenshot failed to upload'
     : 'Capturing screenshot…';
+  const icon = toast.status === 'error' ? '⚠ ' : toast.status === 'queued' ? '💾 ' : '📸 ';
 
   return (
     <div className="shot-toast" onClick={() => setToast(null)}>
       <img src={toast.dataUrl} alt="screenshot preview" />
       <div className="shot-toast-body">
         <div className="shot-toast-title">
-          {toast.status === 'error' ? '⚠ ' : '📸 '}{label}
+          {icon}{label}
         </div>
         <div className="small muted">{fmtTime(toast.at)}</div>
       </div>
