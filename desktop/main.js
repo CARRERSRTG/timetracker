@@ -180,11 +180,19 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 860,
+    title: 'Time Tracker v' + app.getVersion(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Keep our version in the OS window title / taskbar — don't let the loaded
+  // page's <title> overwrite it.
+  mainWindow.on('page-title-updated', (e) => {
+    e.preventDefault();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitle('Time Tracker v' + app.getVersion());
   });
 
   const devUrl = process.env.TT_DEV_URL;
