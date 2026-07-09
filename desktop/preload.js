@@ -26,4 +26,12 @@ contextBridge.exposeInMainWorld('ttDesktop', {
   // smart-idle context: { app, title, movement } — movement is 0..1 fraction of
   // the screen that changed since the last probe
   getContext: () => ipcRenderer.invoke('tt:context'),
+
+  // fired when the OS locks the screen or the machine sleeps; cb receives the
+  // reason ('lock-screen' | 'suspend'). Returns an unsubscribe function.
+  onPower: (cb) => {
+    const listener = (_evt, reason) => cb(reason);
+    ipcRenderer.on('tt:power', listener);
+    return () => ipcRenderer.removeListener('tt:power', listener);
+  },
 });

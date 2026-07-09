@@ -459,6 +459,23 @@ export const screenshots = {
     const { error } = await supabase.from('screenshots').delete().eq('id', id);
     if (error) throw error;
   },
+  // Delete a shot AND forfeit the pay for the segment it covers: subtract
+  // `forfeitSeconds` from the linked session's tracked time (Upwork-style — a
+  // deleted screenshot means that block isn't billed). Active seconds are kept
+  // ≤ the new duration so the activity % stays sane. No-ops the forfeit if the
+  // shot isn't tied to a session.
+  async deleteWithForfeit({ id, path, sessionId, forfeitSeconds }) {
+    await this.deleteWithFile({ id, path });
+    if (!sessionId || !(forfeitSeconds > 0)) return;
+    const { data, error } = await supabase
+      .from('sessions').select('duration_seconds,active_seconds').eq('id', sessionId).single();
+    if (error) throw error;
+    const dur = Math.max(0, (data.duration_seconds || 0) - forfeitSeconds);
+    const act = Math.max(0, Math.min(data.active_seconds || 0, dur));
+    const { error: uErr } = await supabase
+      .from('sessions').update({ duration_seconds: dur, active_seconds: act }).eq('id', sessionId);
+    if (uErr) throw uErr;
+  },
   // manual retention: delete shots older than `days`, both the storage files
   // and the metadata rows. Returns how many were removed.
   async purgeOlderThan(days = 14) {

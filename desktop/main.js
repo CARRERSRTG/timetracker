@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, desktopCapturer, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, screen, powerMonitor } = require('electron');
 const path = require('node:path');
 
 // uiohook-napi provides SYSTEM-WIDE keyboard/mouse events (works even when our
@@ -200,6 +200,13 @@ app.whenReady().then(() => {
   if (autoUpdater && !process.env.TT_DEV_URL && app.isPackaged) {
     autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error('update check failed:', e.message));
   }
+  // Auto-stop: when the machine locks or goes to sleep, tell the renderer so it
+  // can stop the timer (no point counting time while the user is away/locked).
+  ['lock-screen', 'suspend'].forEach((evt) => {
+    powerMonitor.on(evt, () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tt:power', evt);
+    });
+  });
 });
 
 app.on('window-all-closed', () => {

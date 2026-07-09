@@ -64,3 +64,10 @@ export async function desktopGetContext() {
   if (!IS_DESKTOP || !window.ttDesktop.getContext) return null;
   try { return await window.ttDesktop.getContext(); } catch { return null; }
 }
+
+// Subscribe to OS lock/sleep events (desktop only). cb receives the reason.
+// Returns an unsubscribe function; no-ops on web.
+export function desktopOnPower(cb) {
+  if (!IS_DESKTOP || !window.ttDesktop.onPower) return () => {};
+  try { return window.ttDesktop.onPower(cb); } catch { return () => {}; }
+}

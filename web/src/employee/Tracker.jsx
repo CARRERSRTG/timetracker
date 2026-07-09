@@ -3,7 +3,7 @@ import { sessions as sessionsApi, screenshots as screenshotsApi } from '@shared/
 import {
   APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
-import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext } from '../lib/desktop.js';
+import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower } from '../lib/desktop.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
 
@@ -57,6 +57,9 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const ctxProbeRef = useRef(0);        // countdown to next context probe
   const [isIdle, setIsIdle] = useState(false);
   const [ctxApp, setCtxApp] = useState(''); // work app recognized during idle (label)
+  const idlePendingRef = useRef(0);         // idle seconds accrued but not yet kept/discarded
+  const promptOpenRef = useRef(false);      // is the keep/discard prompt currently showing?
+  const [idlePrompt, setIdlePrompt] = useState(0); // seconds offered in the prompt (0 = hidden)
 
   const idleLimitSec = Number(APP_SETTINGS.idleLimitMin) > 0 ? Number(APP_SETTINGS.idleLimitMin) * 60 : Infinity;
   const smartIdle = APP_SETTINGS.smartIdle !== false;
@@ -119,6 +122,23 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   // clean up the ticker if the component unmounts mid-run
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
+  // #6 Auto-stop on lock/sleep (desktop): if the machine locks or sleeps while
+  // tracking, stop the timer so we don't count away-from-keyboard time. Live
+  // refs avoid a stale closure without re-subscribing every tick.
+  const runningRef = useRef(false);
+  const stopRef = useRef(null);
+  runningRef.current = running;
+  stopRef.current = stop;
+  useEffect(() => {
+    if (!IS_DESKTOP) return undefined;
+    return desktopOnPower(() => {
+      if (runningRef.current && stopRef.current) {
+        notify({ title: 'Tracking stopped', body: 'Your screen locked or the computer went to sleep, so tracking was stopped.' });
+        stopRef.current();
+      }
+    });
+  }, []);
+
   function netSeconds(el) { return Math.max(0, el - lunchRef.current - brkRef.current - idleRef.current); }
 
   function breakEventsPayload() {
@@ -141,6 +161,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
     secHadEventRef.current = false; lastActTotalRef.current = 0;
     idleStreakRef.current = 0; idleRef.current = 0; setIsIdle(false);
+    idlePendingRef.current = 0; promptOpenRef.current = false; setIdlePrompt(0);
     ctxRef.current = null; ctxProbeRef.current = 0; setCtxApp(''); screenSecRef.current = 0;
     startMsRef.current = Date.now();
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
@@ -240,6 +261,14 @@ export default function Tracker({ profile, user, assignments, sessions }) {
         }
       }
 
+      // #1 Idle keep/discard: accrue excluded idle time, and when real input
+      // resumes after an idle stretch, ask whether to keep or discard it.
+      if (idleNow) idlePendingRef.current += 1;
+      if (hadEvent && idlePendingRef.current > 0 && !promptOpenRef.current) {
+        promptOpenRef.current = true;
+        setIdlePrompt(idlePendingRef.current);
+      }
+
       const activeThisSec = (windowedActive || productiveNow) && !onBreakRef.current;
       if (activeThisSec) activeSecondsRef.current += 1;
       if (idleNow !== isIdle) setIsIdle(idleNow);
@@ -304,10 +333,20 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     } finally {
       if (IS_DESKTOP && window.ttDesktop) { try { window.ttDesktop.stop(); } catch { /* ignore */ } }
       sessionIdRef.current = null;
+      idlePendingRef.current = 0; promptOpenRef.current = false; setIdlePrompt(0);
       setRunning(false); onBreakRef.current = null; setOnBreak(null); setIsIdle(false); setCtxApp('');
       setWorked(0); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
       setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     }
+  }
+
+  // Resolve the idle prompt: keep credits the away time back as worked time
+  // (by reducing the excluded-idle total); discard leaves it excluded.
+  function resolveIdle(keep) {
+    if (keep) idleRef.current = Math.max(0, idleRef.current - idlePendingRef.current);
+    idlePendingRef.current = 0;
+    promptOpenRef.current = false;
+    setIdlePrompt(0);
   }
 
   function toggleBreak(kind) {
@@ -329,6 +368,18 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
   return (
     <>
+      {idlePrompt > 0 && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 9998 }}>
+          <div className="card" style={{ maxWidth: 380, margin: 0 }}>
+            <h2 style={{ marginTop: 0 }}>Were you working?</h2>
+            <p className="small muted">No keyboard or mouse activity for <b>{fmtClock(idlePrompt)}</b>. Keep this time as worked, or discard it?</p>
+            <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+              <button className="btn-ghost" onClick={() => resolveIdle(false)}>Discard</button>
+              <button className="btn-ok" onClick={() => resolveIdle(true)}>Keep it</button>
+            </div>
+          </div>
+        </div>
+      )}
       {assignments.length === 0 && (
         <div className="banner info">{t('track.noProjects')}</div>
       )}
