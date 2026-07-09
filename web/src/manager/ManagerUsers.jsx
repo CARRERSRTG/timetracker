@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   profiles as profilesApi,
-  assignments as assignmentsApi,
   audit as auditApi,
   auth,
 } from '@shared/lib/supabase.js';
@@ -35,11 +34,9 @@ export default function ManagerUsers({ users, me }) {
   async function removeUser(u) {
     if (u.id === me.id) { alert('You cannot delete yourself.'); return; }
     if (u.role === 'admin' && adminCount <= 1) { alert('Cannot delete the only manager.'); return; }
-    if (!confirm('Delete ' + u.name + ' and their assignments? Their tracked time stays in reports.')) return;
+    if (!confirm('Delete ' + u.name + '? Their tracked time and pay history stay in reports, and you can restore the account below.')) return;
     try {
-      const asn = await assignmentsApi.listByEmployee(u.id);
-      await Promise.all(asn.map((a) => assignmentsApi.remove(a.id)));
-      await profilesApi.remove(u.id);
+      await profilesApi.softDelete(u.id);
       auditApi.log('Employee removed', u.name);
     } catch (e) { alert('Could not delete: ' + (e.message || e)); }
   }
@@ -91,7 +88,49 @@ export default function ManagerUsers({ users, me }) {
           New accounts start <b>pending</b> until you activate them. Employees can change their own password in My account; per-employee tracking settings are under the Employees tab.
         </p>
       </div>
+      <DeletedUsers activeCount={users.length} />
     </>
+  );
+}
+
+// Soft-deleted accounts, with restore. These aren't in the live `users` list
+// (it filters them out), so we load them on demand and reload after any change
+// to the active list (e.g. right after a delete).
+function DeletedUsers({ activeCount }) {
+  const [deleted, setDeleted] = useState([]);
+  const [busy, setBusy] = useState(false);
+  async function load() {
+    try { setDeleted(await profilesApi.listDeleted()); }
+    catch { /* non-fatal */ }
+  }
+  useEffect(() => { load(); }, [activeCount]);
+  async function restore(u) {
+    setBusy(true);
+    try { await profilesApi.restore(u.id); auditApi.log('Employee restored', u.name); await load(); }
+    catch (e) { alert('Could not restore: ' + (e.message || e)); }
+    finally { setBusy(false); }
+  }
+  if (!deleted.length) return null;
+  return (
+    <div className="card">
+      <h2>Deleted accounts</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>Restoring re-enables the account and their assignments. Their tracked time was never removed.</p>
+      <div style={{ overflowX: 'auto' }}>
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Deleted</th><th></th></tr></thead>
+          <tbody>
+            {deleted.map((u) => (
+              <tr key={u.id} style={{ opacity: 0.7 }}>
+                <td>{u.name}</td>
+                <td className="small muted">{u.email || '—'}</td>
+                <td className="small muted nowrap">{u.deletedAt ? new Date(u.deletedAt).toLocaleDateString() : '—'}</td>
+                <td><button className="btn-ok btn-sm" disabled={busy} onClick={() => restore(u)}>Restore</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

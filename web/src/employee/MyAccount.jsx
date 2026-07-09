@@ -92,6 +92,30 @@ function ChangePassword() {
         <div><label>Confirm password</label><input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="••••••••" onKeyDown={(e) => e.key === 'Enter' && save()} /></div>
       </div>
       <button style={{ marginTop: 12 }} disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Update password'}</button>
+      <SignOutEverywhere />
+    </>
+  );
+}
+
+// Security: revoke every other session (a shared/public computer, an old phone,
+// a desktop install you no longer use). This browser is signed out too, so the
+// app returns to the login screen.
+function SignOutEverywhere() {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function go() {
+    if (!confirm('Sign out of every device, including this one? You will need to log in again everywhere.')) return;
+    setErr(''); setBusy(true);
+    try { await auth.signOutEverywhere(); }
+    catch (e) { setErr(e.message || 'Could not sign out everywhere.'); setBusy(false); }
+  }
+  return (
+    <>
+      <div className="hr" />
+      <h3 style={{ color: 'var(--muted)' }}>Devices</h3>
+      {err && <div className="banner err">{err}</div>}
+      <p className="small muted" style={{ marginTop: 0 }}>Signed in somewhere you don't recognize? This revokes every session for your account.</p>
+      <button className="btn-danger btn-sm" disabled={busy} onClick={go}>{busy ? 'Signing out…' : 'Sign out of all devices'}</button>
     </>
   );
 }

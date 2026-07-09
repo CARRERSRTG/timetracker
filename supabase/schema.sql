@@ -409,3 +409,21 @@ begin
     end if;
   end loop;
 end $$;
+
+-- =====================================================================
+--  SOFT-DELETE for profiles — deleting a user sets deleted_at instead of
+--  removing the row, so their tracked time/pay stays intact and the account
+--  is recoverable. The app filters out deleted profiles everywhere except the
+--  manager's Users tab, which can restore them.
+-- =====================================================================
+alter table public.profiles add column if not exists deleted_at timestamptz;
+
+-- =====================================================================
+--  LOCK PAID WEEKS — once a session is attached to a payroll batch
+--  (payroll_id is set) an employee can no longer edit it; only a manager can
+--  (they reopen the payment first, which clears payroll_id). Managers keep
+--  full control via is_admin().
+-- =====================================================================
+drop policy if exists "sessions update" on public.sessions;
+create policy "sessions update" on public.sessions for update to authenticated
+  using (public.is_admin() or (employee_uid = auth.uid() and payroll_id is null));

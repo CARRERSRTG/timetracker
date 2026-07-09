@@ -115,6 +115,13 @@ export const auth = {
     if (error) throw error;
   },
 
+  // Revoke every session for the current user (all browsers + desktop installs),
+  // not just this one. Supabase's 'global' scope invalidates all refresh tokens.
+  async signOutEverywhere() {
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
+    if (error) throw error;
+  },
+
   async resetPassword(email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
     if (error) throw error;
@@ -224,6 +231,23 @@ export const profiles = {
     const { error } = await supabase.from('profiles').delete().eq('id', id);
     if (error) throw error;
   },
+  // Soft-delete: hide the account but keep the row (and all their tracked time /
+  // pay history). Recoverable via restore(). Preferred over remove().
+  async softDelete(id) {
+    const { error } = await supabase.from('profiles').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+  },
+  async restore(id) {
+    const { error } = await supabase.from('profiles').update({ deleted_at: null }).eq('id', id);
+    if (error) throw error;
+  },
+  // Deleted accounts, most-recently-removed first (for the manager's restore UI).
+  async listDeleted() {
+    const { data, error } = await supabase
+      .from('profiles').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(rowToCamel);
+  },
   // fires with the profile object, or null while it doesn't exist yet
   subscribe(id, callback) {
     return subscribeList('profiles', {
@@ -231,8 +255,13 @@ export const profiles = {
       realtimeFilter: `id=eq.${id}`,
     }, (rows) => callback(rows[0] || null));
   },
+  // Live users only — soft-deleted profiles are filtered out everywhere the app
+  // lists people (Reports, Live monitor, Users, Employees, …).
   subscribeAll(callback) {
-    return subscribeList('profiles', { orderBy: { column: 'created_at' } }, callback);
+    return subscribeList('profiles', {
+      query: (q) => q.is('deleted_at', null),
+      orderBy: { column: 'created_at' },
+    }, callback);
   },
 };
 
