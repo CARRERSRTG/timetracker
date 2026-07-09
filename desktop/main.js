@@ -141,6 +141,8 @@ ipcMain.handle('tt:stop', () => {
 
 ipcMain.handle('tt:getActivity', () => ({ ...activity }));
 
+ipcMain.handle('tt:getVersion', () => app.getVersion());
+
 // --- smart-idle context: is the screen actually changing, and in what app? ---
 // We keep the last low-res frame and diff against it to measure on-screen motion
 // (meeting video, a video, scrolling, text appearing). This can't be faked by

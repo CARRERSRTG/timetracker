@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { configOk, auth, profiles, settings as settingsApi } from '@shared/lib/supabase.js';
 import { syncAppSettings } from './lib/helpers.js';
-import { initDesktopShots } from './lib/desktop.js';
+import { initDesktopShots, IS_DESKTOP, desktopGetVersion } from './lib/desktop.js';
+import { APP_VERSION } from './lib/version.js';
 import { ensureNotifyPermission } from './lib/notify.js';
 import { useT } from './lib/i18n.js';
 import LangToggle from './LangToggle.jsx';
@@ -105,6 +106,14 @@ function Shell({ profile, appName, onSignOut }) {
   const isAdmin = profile.role === 'admin';
   const [asEmployee, setAsEmployee] = useState(false);
   const showEmployee = !isAdmin || asEmployee;
+  // Prefer the desktop app's real runtime version; fall back to the build constant.
+  const [version, setVersion] = useState(APP_VERSION);
+  useEffect(() => {
+    let ok = true;
+    desktopGetVersion().then((v) => { if (ok && v) setVersion(v); });
+    return () => { ok = false; };
+  }, []);
+  const edition = IS_DESKTOP ? 'Desktop' : 'Web';
   return (
     <div className="wrap">
       <div className="topbar">
@@ -132,6 +141,8 @@ function Shell({ profile, appName, onSignOut }) {
 
       <p className="small muted" style={{ textAlign: 'center', marginTop: 20 }}>
         {t('shell.focusNote')}
+        <br />
+        <span style={{ opacity: 0.7 }}>{appName || 'TimeTracker'} v{version} · {edition}</span>
       </p>
 
       <ScreenshotToast />

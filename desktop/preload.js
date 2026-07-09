@@ -34,4 +34,7 @@ contextBridge.exposeInMainWorld('ttDesktop', {
     ipcRenderer.on('tt:power', listener);
     return () => ipcRenderer.removeListener('tt:power', listener);
   },
+
+  // the installed app version (from package.json), for the UI version label
+  getVersion: () => ipcRenderer.invoke('tt:getVersion'),
 });

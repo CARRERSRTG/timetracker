@@ -71,3 +71,9 @@ export function desktopOnPower(cb) {
   if (!IS_DESKTOP || !window.ttDesktop.onPower) return () => {};
   try { return window.ttDesktop.onPower(cb); } catch { return () => {}; }
 }
+
+// The installed desktop app version, or null on web / if unavailable.
+export async function desktopGetVersion() {
+  if (!IS_DESKTOP || !window.ttDesktop.getVersion) return null;
+  try { return await window.ttDesktop.getVersion(); } catch { return null; }
+}
