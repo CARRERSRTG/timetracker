@@ -8,14 +8,24 @@
 // app data, not table columns.
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Public project values — safe to ship (the anon key is designed to be public;
+// Row Level Security is the real boundary). Hardcoded as the reliable source so
+// the desktop build never depends on a build-time env var that can get mangled.
+const FALLBACK_URL = 'https://qklsxhzmbnglgzufdbmz.supabase.co';
+const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFrbHN4aHptYm5nbGd6dWZkYm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NTA5MTYsImV4cCI6MjA5OTAyNjkxNn0.ZvNsGijlq0h2shE7DRPY56E2v2XuRoIARbAFzz6xoo8';
+
+// Use the env var only if it's clean ASCII (a corrupted paste can inject
+// non-Latin1 chars that break fetch headers); otherwise fall back.
+function pick(envVal, fallback) {
+  const s = (envVal == null ? '' : String(envVal)).trim();
+  if (!s || /[^\x00-\x7F]/.test(s)) return fallback;
+  return s;
+}
+
+const supabaseUrl = pick(import.meta.env.VITE_SUPABASE_URL, FALLBACK_URL);
+const supabaseAnonKey = pick(import.meta.env.VITE_SUPABASE_ANON_KEY, FALLBACK_KEY);
 
 export const configOk = Boolean(supabaseUrl && supabaseAnonKey);
-
-if (!configOk) {
-  console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — check your .env file.');
-}
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: { persistSession: true, autoRefreshToken: true },
