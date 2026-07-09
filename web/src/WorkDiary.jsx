@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { screenshots as screenshotsApi } from '@shared/lib/supabase.js';
-import { fmtTime, fmtDT, fmtClock } from './lib/helpers.js';
+import { fmtTime, fmtClock, dateISO, addDaysISO, fmtDayLong } from './lib/helpers.js';
 
-// Upwork-style Work Diary: screenshots grouped into session blocks (time range +
-// memo header), each shot with a segmented 10-bar activity meter + timestamp.
-// `sessionsMap` is id -> session (for memo + time range). Optional onDelete(shot).
-export default function WorkDiary({ shots, sessionsMap = {}, onDelete }) {
+// Upwork-style Work Diary for one person: a date navigator, the day's total
+// tracked time, and screenshots grouped by hour (6 per hour, ~every 10 min),
+// each with a segmented activity bar + timestamp.
+export default function WorkDiary({ shots, sessions = [], onDelete }) {
+  const today = dateISO(new Date());
+  const [date, setDate] = useState(today);
   const [urls, setUrls] = useState({});
+
+  const dayShots = useMemo(
+    () => shots.filter((s) => (s.date || (s.takenAt ? dateISO(new Date(s.takenAt)) : '')) === date),
+    [shots, date],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    const missing = shots.filter((s) => s.path && !urls[s.path]);
+    const missing = dayShots.filter((s) => s.path && !urls[s.path]);
     if (!missing.length) return;
     Promise.all(missing.map(async (s) => {
       try { return [s.path, await screenshotsApi.signedUrl(s.path, 3600)]; } catch { return [s.path, null]; }
@@ -19,40 +26,42 @@ export default function WorkDiary({ shots, sessionsMap = {}, onDelete }) {
       setUrls((prev) => { const next = { ...prev }; pairs.forEach(([p, u]) => { if (u) next[p] = u; }); return next; });
     });
     return () => { cancelled = true; };
-  }, [shots]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dayShots]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // group shots by session id (falling back to a synthetic per-day bucket)
-  const groups = {};
-  shots.forEach((s) => {
-    const key = s.sessionId || ('day-' + (s.date || ''));
-    (groups[key] = groups[key] || []).push(s);
+  const totalSec = sessions.filter((s) => s.date === date).reduce((n, s) => n + (s.durationSeconds || 0), 0);
+
+  // group the day's shots by clock hour
+  const byHour = {};
+  dayShots.forEach((s) => {
+    const h = s.takenAt ? new Date(s.takenAt).getHours() : 0;
+    (byHour[h] = byHour[h] || []).push(s);
   });
-  const blocks = Object.entries(groups).map(([key, list]) => {
-    const sorted = list.slice().sort((a, b) => new Date(a.takenAt || 0) - new Date(b.takenAt || 0));
-    const sess = sessionsMap[key];
-    const firstMs = sorted[0]?.takenAt ? new Date(sorted[0].takenAt).getTime() : 0;
-    const lastMs = sorted[sorted.length - 1]?.takenAt ? new Date(sorted[sorted.length - 1].takenAt).getTime() : firstMs;
-    const startMs = sess?.startMs || firstMs;
-    const endMs = sess?.endMs || lastMs;
-    const durSec = sess?.durationSeconds ?? Math.max(0, Math.round((endMs - startMs) / 1000));
-    return { key, sorted, startMs, endMs, durSec, memo: sess?.memo || '' };
-  }).sort((a, b) => b.startMs - a.startMs);
-
-  if (!shots.length) return null;
+  const hours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
+  const hourLabel = (h) => {
+    const base = new Date(); base.setHours(h, 0, 0, 0);
+    const end = new Date(base.getTime() + 3600000);
+    return fmtTime(base.getTime()) + ' – ' + fmtTime(end.getTime());
+  };
 
   return (
-    <div>
-      {blocks.map((b) => (
-        <div key={b.key} style={{ marginTop: 16 }}>
-          <div className="between" style={{ alignItems: 'baseline' }}>
-            <div style={{ fontWeight: 700 }}>
-              🟢 {fmtTime(b.startMs)} – {fmtTime(b.endMs)}
-              <span className="muted small"> ({(b.durSec / 3600).toFixed(2)} hrs)</span>
-            </div>
-            {b.memo && <div className="small muted">{b.memo}</div>}
-          </div>
+    <div style={{ marginTop: 8 }}>
+      <div className="between box" style={{ alignItems: 'center' }}>
+        <div className="row" style={{ alignItems: 'center' }}>
+          <button className="btn-ghost btn-sm" onClick={() => setDate((d) => addDaysISO(d, -1))}>←</button>
+          <b className="nowrap">{fmtDayLong(date)}</b>
+          <button className="btn-ghost btn-sm" disabled={date >= today} onClick={() => setDate((d) => addDaysISO(d, 1))}>→</button>
+          {date !== today && <button className="link" onClick={() => setDate(today)}>Today</button>}
+        </div>
+        <div><b>Total: {fmtClock(totalSec)}</b> <span className="small muted">hrs</span></div>
+      </div>
+
+      {dayShots.length === 0 ? (
+        <p className="muted small" style={{ marginTop: 12 }}>No screenshots on this day.</p>
+      ) : hours.map((h) => (
+        <div key={h} style={{ marginTop: 14 }}>
+          <div className="small muted" style={{ fontWeight: 600 }}>🟢 {hourLabel(h)} · {byHour[h].length} shots</div>
           <div className="shotgrid" style={{ marginTop: 8 }}>
-            {b.sorted.map((s) => {
+            {byHour[h].slice().sort((a, b) => new Date(a.takenAt || 0) - new Date(b.takenAt || 0)).map((s) => {
               const url = urls[s.path];
               const pct = Math.max(0, Math.min(100, s.activityPercent || 0));
               const filled = Math.round(pct / 10);
@@ -64,7 +73,7 @@ export default function WorkDiary({ shots, sessionsMap = {}, onDelete }) {
                   <div className="meter" title={`Activity ${pct}%`} style={{ marginTop: 4 }}>
                     {Array.from({ length: 10 }).map((_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
                   </div>
-                  <div className="small muted">{s.takenAt ? fmtDT(new Date(s.takenAt).getTime(), { hour: '2-digit', minute: '2-digit' }) : '…'}</div>
+                  <div className="small muted">{s.takenAt ? fmtTime(new Date(s.takenAt).getTime()) : '…'} · {pct}%</div>
                   {onDelete && (
                     <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 4, padding: '2px 6px' }} onClick={() => onDelete(s)}>Delete</button>
                   )}

@@ -85,7 +85,26 @@ export function weekStartISO(x, weekStartDay) {
 }
 export function weekEndISO(startISO) { return shiftISO(startISO, 6); }
 export function addWeeks(startISO, n) { return shiftISO(startISO, n * 7); }
+export function addDaysISO(iso, n) { return shiftISO(iso, n); }
 export function thisWeekStart() { return weekStartISO(new Date()); }
+
+// "Sat, Jul 4, 2026" for a YYYY-MM-DD string
+export function fmtDayLong(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(LOCALE, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+// "3 min ago" / "2 hrs ago" / "1 day ago"
+export function timeAgo(ms) {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + ' min ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + ' hr' + (h > 1 ? 's' : '') + ' ago';
+  const d = Math.floor(h / 24);
+  return d + ' day' + (d > 1 ? 's' : '') + ' ago';
+}
 
 export function fmtISOday(iso) {
   const [y, m, d] = iso.split('-').map(Number);

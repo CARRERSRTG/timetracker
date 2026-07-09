@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sessions as sessionsApi } from '@shared/lib/supabase.js';
+import { sessions as sessionsApi, screenshots as screenshotsApi } from '@shared/lib/supabase.js';
 import {
-  APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, effWorkerType, effTrackMode, effBreaks,
+  APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
 import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext } from '../lib/desktop.js';
 import { notify } from '../lib/notify.js';
@@ -431,6 +431,7 @@ export default function Tracker({ profile, user, assignments, sessions }) {
         )}
       </div>
 
+      <LatestShot profile={profile} t={t} />
       <TodayList sessions={sessions} assignments={assignments} />
     </>
   );
@@ -458,6 +459,37 @@ function LimitBar({ usedSec, limitHours }) {
       <div style={{ background: 'var(--line)', borderRadius: 999, height: 10, overflow: 'hidden' }}>
         <div style={{ width: pct + '%', height: '100%', background: color, transition: 'width .3s, background .3s' }} />
       </div>
+    </div>
+  );
+}
+
+// Upwork-style "Latest screenshot" card on the tracker.
+function LatestShot({ profile, t }) {
+  const [shot, setShot] = useState(null);
+  const [url, setUrl] = useState('');
+  useEffect(() => screenshotsApi.subscribeByEmployee(profile.id, (rows) => setShot(rows[0] || null)), [profile.id]);
+  useEffect(() => {
+    if (!shot?.path) { setUrl(''); return; }
+    let ok = true;
+    screenshotsApi.signedUrl(shot.path, 3600).then((u) => { if (ok) setUrl(u); }).catch(() => {});
+    return () => { ok = false; };
+  }, [shot?.path]);
+  if (!shot) return null;
+  const pct = Math.max(0, Math.min(100, shot.activityPercent || 0));
+  const filled = Math.round(pct / 10);
+  return (
+    <div className="card">
+      <div className="between">
+        <h2 style={{ margin: 0 }}>{t('track.latestShot')}</h2>
+        <span className="small muted">{shot.takenAt ? timeAgo(new Date(shot.takenAt).getTime()) : ''}</span>
+      </div>
+      <a className="shot" href={url || undefined} target="_blank" rel="noopener noreferrer" style={{ display: 'block', maxWidth: 360, marginTop: 10 }}>
+        {url ? <img src={url} alt="latest screenshot" style={{ height: 'auto' }} /> : <div className="shot-loading" style={{ height: 180 }} />}
+        <div className="meter" style={{ marginTop: 6 }}>
+          {Array.from({ length: 10 }).map((_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
+        </div>
+        <div className="small muted">{shot.takenAt ? fmtTime(new Date(shot.takenAt).getTime()) : ''} · {pct}% activity</div>
+      </a>
     </div>
   );
 }

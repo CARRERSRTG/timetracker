@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
 import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
-import { weekStartISO, weekLabel, dateISO } from '../lib/helpers.js';
+import { dateISO } from '../lib/helpers.js';
 import WorkDiary from '../WorkDiary.jsx';
 
-// Manager Work Diary: collapsible per employee, then per pay week, with Upwork-
-// style session blocks + segmented activity bars.
+// Manager Work Diary: pick an employee, then browse their day-by-day diary
+// (Upwork-style date nav + hourly groups + activity bars).
 export default function Screenshots({ users }) {
   const [shots, setShots] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [uid, setUid] = useState('');
   const [purgeMsg, setPurgeMsg] = useState('');
   const [purging, setPurging] = useState(false);
 
   useEffect(() => screenshotsApi.subscribeRecent(500, setShots), []);
   useEffect(() => {
-    const start = dateISO(Date.now() - 15 * 86400000); // last ~2 weeks for memo/time ranges
+    const start = dateISO(Date.now() - 15 * 86400000);
     return sessionsApi.subscribeFromDate(start, setSessions);
   }, []);
 
@@ -27,49 +28,34 @@ export default function Screenshots({ users }) {
     finally { setPurging(false); }
   }
 
-  const uMap = {}; users.forEach((u) => { uMap[u.id] = u; });
-  const sessMap = {}; sessions.forEach((s) => { sessMap[s.id] = s; });
-
-  // group: employee -> week -> shots
-  const byEmp = {};
-  shots.forEach((s) => {
-    const emp = s.employeeUid || 'unknown';
-    const wk = weekStartISO(s.date || (s.takenAt ? new Date(s.takenAt) : new Date()));
-    ((byEmp[emp] = byEmp[emp] || {})[wk] = byEmp[emp][wk] || []).push(s);
-  });
-  const empIds = Object.keys(byEmp).sort((a, b) => (uMap[a]?.name || '').localeCompare(uMap[b]?.name || ''));
+  // employees that actually have screenshots
+  const empIds = Array.from(new Set(shots.map((s) => s.employeeUid)));
+  const employees = users.filter((u) => empIds.includes(u.id));
+  const activeUid = uid || employees[0]?.id || '';
+  const empShots = shots.filter((s) => s.employeeUid === activeUid);
+  const empSessions = sessions.filter((s) => s.employeeUid === activeUid);
 
   return (
     <div className="card">
       <div className="between">
         <h2 style={{ margin: 0 }}>Work diary</h2>
-        <button className="btn-ghost btn-sm" disabled={purging} onClick={purge}>🗑 Delete &gt; 14 days old</button>
+        <div className="row" style={{ alignItems: 'center' }}>
+          <select value={activeUid} onChange={(e) => setUid(e.target.value)} style={{ width: 'auto' }}>
+            {employees.length === 0 && <option value="">No screenshots yet</option>}
+            {employees.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          <button className="btn-ghost btn-sm" disabled={purging} onClick={purge}>🗑 &gt; 14 days</button>
+        </div>
       </div>
       {purgeMsg && <div className="banner info" style={{ marginTop: 10 }}>{purgeMsg}</div>}
 
-      {empIds.length === 0 ? (
+      {employees.length === 0 ? (
         <p className="muted" style={{ marginTop: 12 }}>No screenshots yet. They appear here when employees track time on the desktop app.</p>
-      ) : empIds.map((emp) => {
-        const weeks = Object.keys(byEmp[emp]).sort().reverse();
-        const total = weeks.reduce((n, w) => n + byEmp[emp][w].length, 0);
-        return (
-          <details key={emp} open style={{ marginTop: 12 }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 15 }}>
-              {uMap[emp]?.name || '—'} <span className="chip" style={{ marginLeft: 6 }}>{total}</span>
-            </summary>
-            {weeks.map((w) => (
-              <details key={w} open style={{ margin: '8px 0 0 12px' }}>
-                <summary style={{ cursor: 'pointer' }} className="small muted">
-                  {weekLabel(w)} · {byEmp[emp][w].length} shots
-                </summary>
-                <WorkDiary shots={byEmp[emp][w]} sessionsMap={sessMap} />
-              </details>
-            ))}
-          </details>
-        );
-      })}
+      ) : (
+        <WorkDiary key={activeUid} shots={empShots} sessions={empSessions} />
+      )}
       <p className="small muted" style={{ marginTop: 14 }}>
-        One shot per ~10-minute segment (max 6/hour) at a random time. The bar under each shows that segment's keyboard/mouse activity.
+        One shot per ~10-minute segment (max 6/hour) at a random time; the bar under each shows that segment's activity.
       </p>
     </div>
   );
