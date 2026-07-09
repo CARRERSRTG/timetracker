@@ -25,6 +25,7 @@ export let APP_SETTINGS = {
   defaultTrackMode: 'activity',
   defaultBreaksEnabled: true,
   idleLimitMin: 5, // stop counting after this many minutes of no input (0 = off)
+  locations: [{ name: 'Remote', weekStartDay: 6 }], // each location can set its own pay-week start
   smartIdle: true, // count input-idle time when the screen is active in a work app (desktop)
   workApps: ['Meet', 'Zoom', 'Teams', 'Webex', 'Skype', 'RingCentral', 'Slack', 'Claude', 'ChatGPT',
     'Docs', 'Sheets', 'Slides', 'Word', 'Excel', 'PowerPoint', 'Outlook', 'Gmail',
@@ -165,6 +166,16 @@ export function addPeriod(periodStart, n, payPeriod) {
   return shiftISO(periodStart, n * 7);
 }
 export function thisPeriodStart(payPeriod) { return periodStartISO(new Date(), payPeriod); }
+
+// A project's pay-week start day: explicit project override → its location's
+// configured start day → the company default (undefined lets weekStartISO use it).
+export function projectWeekStart(project) {
+  if (project && project.weekStartDay != null && project.weekStartDay !== '') return Number(project.weekStartDay);
+  const locs = APP_SETTINGS.locations || [];
+  const loc = locs.find((l) => (l.name || '').toLowerCase() === ((project && project.location) || '').toLowerCase());
+  if (loc && loc.weekStartDay != null && loc.weekStartDay !== '') return Number(loc.weekStartDay);
+  return undefined;
+}
 export function periodLabel(periodStart, payPeriod) {
   const p = payPeriod || APP_SETTINGS.payPeriod || 'weekly';
   if (p === 'weekly') return weekLabel(periodStart);

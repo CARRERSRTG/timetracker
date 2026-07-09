@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { sessions as sessionsApi, payrolls as payrollsApi, audit as auditApi } from '@shared/lib/supabase.js';
 import {
   APP_SETTINGS, computePay, money, fmtClock, fmtHM, fmtDT, dateISO, weekStartISO, breaksText,
-  periodStartISO, periodEndISO, addPeriod, thisPeriodStart, periodLabel,
+  periodEndISO, addPeriod, thisPeriodStart, periodLabel, projectWeekStart,
 } from '../lib/helpers.js';
 
 // Payroll adapted to our schema: batches live in `payrolls`, the amount is the
@@ -64,7 +64,7 @@ export default function ManagerReports({ profile, users, projects, assignments }
       g.sec += s.durationSeconds || 0;
       g.active += s.activeSeconds || 0;
       const proj = pMap[aMap[s.assignmentId]?.projectId];
-      const w = weekStartISO(s.date, proj ? proj.weekStartDay : undefined);
+      const w = weekStartISO(s.date, projectWeekStart(proj));
       g.weeks[w] = (g.weeks[w] || 0) + (s.durationSeconds || 0);
     });
     let pay = 0, sec = 0;

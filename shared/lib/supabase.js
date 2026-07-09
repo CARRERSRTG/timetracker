@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS = {
   defaultTrackMode: 'activity',
   defaultBreaksEnabled: true,
   idleLimitMin: 5,
+  locations: [{ name: 'Remote', weekStartDay: 6 }],
   smartIdle: true,
   workApps: ['Meet', 'Zoom', 'Teams', 'Webex', 'Skype', 'RingCentral', 'Slack', 'Claude', 'ChatGPT',
     'Docs', 'Sheets', 'Slides', 'Word', 'Excel', 'PowerPoint', 'Outlook', 'Gmail',

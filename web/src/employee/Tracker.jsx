@@ -188,11 +188,14 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       let hadEvent;
       if (IS_DESKTOP) {
         const act = await desktopGetActivity();
+        let moves = 0;
         if (act) {
           keystrokesRef.current = act.keystrokes;
           clicksRef.current = act.clicks;
+          moves = act.moves || 0;
         }
-        const total = keystrokesRef.current + clicksRef.current;
+        // keystrokes + clicks + mouse-moves/scroll → any of them = activity
+        const total = keystrokesRef.current + clicksRef.current + moves;
         hadEvent = total > lastActTotalRef.current;
         lastActTotalRef.current = total;
       } else {

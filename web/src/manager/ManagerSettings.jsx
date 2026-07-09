@@ -15,6 +15,8 @@ export default function ManagerSettings() {
   const [shotMin, setShotMin] = useState(APP_SETTINGS.screenshotIntervalMin ?? 10);
   const [idleMin, setIdleMin] = useState(APP_SETTINGS.idleLimitMin ?? 5);
   const [appName, setAppName] = useState(APP_SETTINGS.appName || 'TimeTracker');
+  const [locations, setLocations] = useState(() => (APP_SETTINGS.locations || []).map((l) => ({ name: l.name || '', weekStartDay: l.weekStartDay == null ? '' : String(l.weekStartDay) })));
+  const setLoc = (i, k, v) => setLocations((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
   const [smartIdle, setSmartIdle] = useState(APP_SETTINGS.smartIdle !== false);
   const [workApps, setWorkApps] = useState((APP_SETTINGS.workApps || []).join(', '));
   const [wtype, setWtype] = useState(APP_SETTINGS.defaultWorkerType);
@@ -38,6 +40,7 @@ export default function ManagerSettings() {
     const alist = adjTypes.split(',').map((s) => s.trim()).filter(Boolean);
     await settingsApi.update({
       appName: appName.trim() || 'TimeTracker',
+      locations: locations.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), weekStartDay: l.weekStartDay === '' ? null : Number(l.weekStartDay) })),
       currency: cur.trim() || '$',
       timeZone: tz,
       weekStartDay: Number(wsd),
@@ -116,6 +119,23 @@ export default function ManagerSettings() {
 
       <label>App name (shown in the top bar)</label>
       <input value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="TimeTracker" />
+
+      <div className="hr" />
+      <h3 style={{ color: 'var(--muted)' }}>Locations</h3>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Each location can have its own pay-week start day. A project inherits its location's start day (or set an override on the project). Match a project's Location field to a name here.
+      </p>
+      {locations.map((l, i) => (
+        <div key={i} className="row" style={{ marginBottom: 6 }}>
+          <input value={l.name} onChange={(e) => setLoc(i, 'name', e.target.value)} placeholder="e.g. Remote, SPS office" style={{ flex: 2 }} />
+          <select value={l.weekStartDay} onChange={(e) => setLoc(i, 'weekStartDay', e.target.value)} style={{ flex: 1, minWidth: 130 }}>
+            <option value="">Company default</option>
+            {DAYS.map((d, di) => <option key={di} value={di}>Starts {d}</option>)}
+          </select>
+          <button className="btn-danger btn-sm" onClick={() => setLocations((ls) => ls.filter((_, j) => j !== i))}>×</button>
+        </div>
+      ))}
+      <button className="btn-ghost btn-sm" onClick={() => setLocations((ls) => [...ls, { name: '', weekStartDay: '' }])}>+ Add location</button>
 
       <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>Company (shown on receipts)</h3>

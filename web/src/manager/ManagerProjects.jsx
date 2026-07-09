@@ -89,7 +89,11 @@ export default function ManagerProjects({ projects, assignments, users }) {
           <div><label>Client (optional)</label><input value={f.client} onChange={(e) => upd('client', e.target.value)} placeholder="e.g. El Lechón Ardiente" /></div>
         </div>
         <div className="grid g2">
-          <div><label>Location (optional)</label><input value={f.location} onChange={(e) => upd('location', e.target.value)} placeholder="e.g. SPS / Remote" /></div>
+          <div>
+            <label>Location</label>
+            <input list="tt-locations" value={f.location} onChange={(e) => upd('location', e.target.value)} placeholder="e.g. Remote (sets the pay week)" />
+            <datalist id="tt-locations">{(APP_SETTINGS.locations || []).map((l) => <option key={l.name} value={l.name} />)}</datalist>
+          </div>
           <div><label>Category (optional)</label><input value={f.category} onChange={(e) => upd('category', e.target.value)} placeholder="e.g. Development, Sales" /></div>
         </div>
         <div className="grid g2">

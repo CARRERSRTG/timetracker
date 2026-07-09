@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import {
   profiles as profilesApi,
   assignments as assignmentsApi,
   audit as auditApi,
-  auth,
 } from '@shared/lib/supabase.js';
 
 // NOTE: schema profiles has no `phone` column (dropped in the port). `active`,
@@ -47,9 +45,7 @@ export default function ManagerPeople({ users, me }) {
 
   const others = users.filter((u) => u.id !== me.id);
   return (
-    <>
-      <NewEmployee />
-      <div className="card">
+    <div className="card">
       <h2>Employees</h2>
       {others.length === 0 && (
         <div className="banner info">
@@ -115,46 +111,7 @@ export default function ManagerPeople({ users, me }) {
         </table>
       </div>
       <p className="small muted" style={{ marginTop: 10 }}>
-        "(default)" uses the value in Settings. <b>Deactivate</b> blocks a person's access but keeps everything. <b>Delete</b> removes their profile and assignments. "Pay to" is set by each employee in their account and appears on receipts.
-      </p>
-      </div>
-    </>
-  );
-}
-
-function NewEmployee() {
-  const [f, setF] = useState({ email: '', name: '', password: '' });
-  const [msg, setMsg] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-  const upd = (k, v) => setF((p) => ({ ...p, [k]: v }));
-  async function create() {
-    setMsg(''); setErr('');
-    if (!f.email.trim() || f.name.trim().length < 2 || f.password.length < 6) {
-      setErr('Enter an email, a name, and a temporary password (6+ chars).');
-      return;
-    }
-    setBusy(true);
-    try {
-      await auth.adminCreateUser(f);
-      setMsg(`Invited ${f.email.trim()}. They'll get a confirmation email; after they confirm, activate them below.`);
-      setF({ email: '', name: '', password: '' });
-    } catch (e) { setErr(e.message || 'Could not create the user.'); }
-    finally { setBusy(false); }
-  }
-  return (
-    <div className="card">
-      <h2>Add an employee</h2>
-      {msg && <div className="banner ok">{msg}</div>}
-      {err && <div className="banner err">{err}</div>}
-      <div className="grid g3">
-        <div><label>Email</label><input type="email" value={f.email} onChange={(e) => upd('email', e.target.value)} placeholder="person@example.com" /></div>
-        <div><label>Name</label><input value={f.name} onChange={(e) => upd('name', e.target.value)} placeholder="Full name" /></div>
-        <div><label>Temporary password</label><input type="text" value={f.password} onChange={(e) => upd('password', e.target.value)} placeholder="they can change it later" /></div>
-      </div>
-      <button style={{ marginTop: 12 }} disabled={busy} onClick={create}>{busy ? 'Creating…' : 'Create & send confirmation'}</button>
-      <p className="small muted" style={{ marginTop: 8 }}>
-        They receive a confirmation email. After they confirm, activate their account below. Share the temporary password with them (they can change it in My account).
+        "(default)" uses the value in Settings. <b>Deactivate</b> blocks a person's access but keeps everything. Create, edit and delete accounts under the <b>Users</b> tab. "Pay to" is set by each employee in their account and appears on receipts.
       </p>
     </div>
   );

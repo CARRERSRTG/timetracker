@@ -35,7 +35,8 @@ try {
 let mainWindow = null;
 
 // activity counters (system-wide, accumulated for the current session)
-const activity = { keystrokes: 0, clicks: 0 };
+const activity = { keystrokes: 0, clicks: 0, moves: 0 };
+let lastMoveSec = 0;
 let hookRunning = false;
 let shotTimer = null;
 let currentSessionId = null;
@@ -56,6 +57,7 @@ function startHook() {
   if (!uIOhook || hookRunning) return;
   activity.keystrokes = 0;
   activity.clicks = 0;
+  activity.moves = 0;
   try {
     uIOhook.start();
     hookRunning = true;
@@ -73,6 +75,14 @@ function stopHook() {
 if (uIOhook) {
   uIOhook.on('keydown', () => { activity.keystrokes++; markActive(); });
   uIOhook.on('mousedown', () => { activity.clicks++; markActive(); });
+  // mouse movement + scroll count as activity too (throttled to once/second so
+  // a moving mouse doesn't inflate the raw counters)
+  uIOhook.on('mousemove', () => {
+    const s = Math.floor(Date.now() / 1000);
+    if (s !== lastMoveSec) { lastMoveSec = s; activity.moves++; }
+    markActive();
+  });
+  uIOhook.on('wheel', () => { activity.moves++; markActive(); });
 }
 
 async function captureAndSend() {
