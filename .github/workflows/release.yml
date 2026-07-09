@@ -10,6 +10,15 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
+      - name: Stop Defender from deleting the build tools
+        shell: powershell
+        run: |
+          try {
+            Set-MpPreference -DisableRealtimeMonitoring $true
+            Add-MpPreference -ExclusionPath "${{ github.workspace }}"
+            Add-MpPreference -ExclusionProcess "7za.exe"
+            Add-MpPreference -ExclusionProcess "app-builder.exe"
+          } catch { Write-Host "Defender tweak skipped: $_" }
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
