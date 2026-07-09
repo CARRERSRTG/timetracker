@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "workspaces": [
     "web",
-    "shared",
-    "desktop"
+    "shared"
   ],
   "scripts": {
+    "postinstall": "npm install --prefix desktop",
     "web": "npm run dev --prefix web",
     "desktop": "concurrently -k -n web,electron -c blue,green \"npm run dev --prefix web\" \"wait-on tcp:127.0.0.1:5173 && npm run dev --prefix desktop\"",
     "build:web": "npm run build --prefix web",
