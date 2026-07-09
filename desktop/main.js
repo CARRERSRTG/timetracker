@@ -38,7 +38,8 @@ let mainWindow = null;
 const activity = { keystrokes: 0, clicks: 0, moves: 0 };
 let lastMoveSec = 0;
 let hookRunning = false;
-let shotTimer = null;
+let shotTimer = null;   // fires the single shot at a random moment in the segment
+let segTimer = null;    // fires at the segment boundary to begin the next segment
 let currentSessionId = null;
 
 // per-screenshot segment activity: count distinct seconds with input in the
@@ -107,17 +108,18 @@ async function captureAndSend() {
   }
 }
 
-// Upwork-style cadence: exactly one screenshot per segment (default 10 min),
-// taken at a random moment inside the segment so it can't be predicted/gamed.
+// Upwork-style cadence: the session is divided into fixed segments (default
+// 10 min → 6/hour). Exactly ONE screenshot per segment, taken at a random
+// moment inside it (so it can't be predicted/gamed). The next segment always
+// begins one FULL segmentMs after this one started — not right after the shot —
+// so shots stay ~6/hour instead of bunching up.
 function startSegment() {
   segStartMs = Date.now();
   segActiveSeconds = 0;
   lastActiveSec = 0;
-  const delay = Math.floor(Math.random() * segmentMs); // random time within this segment
-  shotTimer = setTimeout(async () => {
-    await captureAndSend();
-    if (currentSessionId) startSegment(); // begin the next segment
-  }, delay);
+  const offset = Math.floor(Math.random() * segmentMs); // random moment to shoot
+  shotTimer = setTimeout(() => { captureAndSend(); }, offset);
+  segTimer = setTimeout(() => { if (currentSessionId) startSegment(); }, segmentMs);
 }
 
 ipcMain.handle('tt:start', (_evt, opts) => {
@@ -125,13 +127,13 @@ ipcMain.handle('tt:start', (_evt, opts) => {
   segmentMs = intervalMin * 60 * 1000;
   currentSessionId = opts?.sessionId || null;
   startHook();
-  if (shotTimer) { clearTimeout(shotTimer); shotTimer = null; }
+  clearTimeout(shotTimer); clearTimeout(segTimer); shotTimer = segTimer = null;
   startSegment();
   return { ok: true };
 });
 
 ipcMain.handle('tt:stop', () => {
-  if (shotTimer) { clearTimeout(shotTimer); shotTimer = null; }
+  clearTimeout(shotTimer); clearTimeout(segTimer); shotTimer = segTimer = null;
   currentSessionId = null;
   stopHook();
   return { ok: true };
@@ -211,7 +213,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopHook();
-  if (shotTimer) clearInterval(shotTimer);
+  clearTimeout(shotTimer); clearTimeout(segTimer);
   if (process.platform !== 'darwin') app.quit();
 });
 
