@@ -268,7 +268,13 @@ function setupAutoUpdate() {
 }
 ipcMain.handle('tt:getUpdateState', () => lastUpdate);
 ipcMain.handle('tt:checkUpdate', () => {
-  if (autoUpdater && app.isPackaged) autoUpdater.checkForUpdates().catch((e) => sendUpdate({ state: 'error', message: e.message }));
+  // Always give immediate visible feedback, even when we can't really check.
+  if (autoUpdater && app.isPackaged) {
+    sendUpdate({ state: 'checking' });
+    autoUpdater.checkForUpdates().catch((e) => sendUpdate({ state: 'error', message: e.message }));
+  } else {
+    sendUpdate({ state: 'error', message: 'Updates only work in the installed app (this looks like the dev build).' });
+  }
   return true;
 });
 ipcMain.handle('tt:installUpdate', () => {
