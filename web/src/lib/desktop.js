@@ -92,6 +92,13 @@ export async function desktopGetContext() {
   try { return await window.ttDesktop.getContext(); } catch { return null; }
 }
 
+// Ask "are you still working?" via a centered native dialog (desktop only).
+// Resolves true to KEEP the away time, false to DISCARD. Null on web.
+export async function desktopAskStillWorking(seconds) {
+  if (!IS_DESKTOP || !window.ttDesktop.askStillWorking) return null;
+  try { return await window.ttDesktop.askStillWorking(seconds); } catch { return null; }
+}
+
 // Subscribe to OS lock/sleep events (desktop only). cb receives the reason.
 // Returns an unsubscribe function; no-ops on web.
 export function desktopOnPower(cb) {

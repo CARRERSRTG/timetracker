@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, desktopCapturer, screen, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, screen, powerMonitor, dialog } = require('electron');
 const path = require('node:path');
 
 // uiohook-napi provides SYSTEM-WIDE keyboard/mouse events (works even when our
@@ -33,13 +33,15 @@ try {
 }
 
 let mainWindow = null;
+let allowClose = false; // set true once the user confirms quitting while tracking
 
 // activity counters (system-wide, accumulated for the current session)
 const activity = { keystrokes: 0, clicks: 0, moves: 0 };
 let lastMoveSec = 0;
 let hookRunning = false;
-let shotTimer = null;   // fires the single shot at a random moment in the segment
-let segTimer = null;    // fires at the segment boundary to begin the next segment
+let shotTimer = null;    // fires the single screenshot for the current window
+let lastShotMs = 0;      // time of the last capture (to enforce the minimum gap)
+const MIN_GAP_MS = 5 * 60 * 1000; // screenshots are never closer than 5 minutes apart
 let currentSessionId = null;
 
 // per-screenshot segment activity: count distinct seconds with input in the
@@ -118,18 +120,34 @@ async function captureAndSend() {
   }
 }
 
-// Upwork-style cadence: the session is divided into fixed segments (default
-// 10 min → 6/hour). Exactly ONE screenshot per segment, taken at a random
-// moment inside it (so it can't be predicted/gamed). The next segment always
-// begins one FULL segmentMs after this one started — not right after the shot —
-// so shots stay ~6/hour instead of bunching up.
-function startSegment() {
+// Upwork-style cadence, clock-aligned: the hour is divided into fixed 10-min
+// windows (:00–:09, :10–:19, … :50–:59). Exactly ONE screenshot per window, at a
+// random moment inside it (so it can't be predicted/gamed), and NEVER less than
+// 5 minutes after the previous shot. Six screenshots per hour.
+function scheduleNextShot() {
+  // activity for the upcoming shot is measured from now until it fires
   segStartMs = Date.now();
   segActiveSeconds = 0;
   lastActiveSec = 0;
-  const offset = Math.floor(Math.random() * segmentMs); // random moment to shoot
-  shotTimer = setTimeout(() => { captureAndSend(); }, offset);
-  segTimer = setTimeout(() => { if (currentSessionId) startSegment(); }, segmentMs);
+  const now = Date.now();
+  const d = new Date(now);
+  const hourStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), 0, 0, 0).getTime();
+  // the window that contains the earliest time we're allowed to shoot
+  const base = Math.max(now, lastShotMs + MIN_GAP_MS);
+  const k = Math.floor((base - hourStart) / segmentMs);
+  let winStart = hourStart + k * segmentMs;
+  let winEnd = winStart + segmentMs;
+  let earliest = Math.max(winStart, now, lastShotMs + MIN_GAP_MS);
+  if (earliest >= winEnd) { // no room left in this window → roll to the next one
+    winStart = winEnd; winEnd = winStart + segmentMs;
+    earliest = Math.max(winStart, now, lastShotMs + MIN_GAP_MS);
+  }
+  const shotAt = earliest + Math.random() * (winEnd - earliest);
+  shotTimer = setTimeout(async () => {
+    await captureAndSend();
+    lastShotMs = Date.now();
+    if (currentSessionId) scheduleNextShot();
+  }, Math.max(0, shotAt - now));
 }
 
 ipcMain.handle('tt:start', (_evt, opts) => {
@@ -137,13 +155,14 @@ ipcMain.handle('tt:start', (_evt, opts) => {
   segmentMs = intervalMin * 60 * 1000;
   currentSessionId = opts?.sessionId || null;
   startHook();
-  clearTimeout(shotTimer); clearTimeout(segTimer); shotTimer = segTimer = null;
-  startSegment();
+  clearTimeout(shotTimer); shotTimer = null;
+  lastShotMs = 0; // allow the first shot to happen within the current window
+  scheduleNextShot();
   return { ok: true };
 });
 
 ipcMain.handle('tt:stop', () => {
-  clearTimeout(shotTimer); clearTimeout(segTimer); shotTimer = segTimer = null;
+  clearTimeout(shotTimer); shotTimer = null;
   currentSessionId = null;
   stopHook();
   return { ok: true };
@@ -152,6 +171,27 @@ ipcMain.handle('tt:stop', () => {
 ipcMain.handle('tt:getActivity', () => ({ ...activity }));
 
 ipcMain.handle('tt:getVersion', () => app.getVersion());
+
+// Idle "are you still working?" — a centered, on-top native dialog that stays
+// until answered (and flashes the taskbar to grab attention, even if minimized).
+// Returns true to KEEP the away time as worked, false to DISCARD it.
+ipcMain.handle('tt:askIdle', async (_evt, seconds) => {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  const away = s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's';
+  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true); } catch (e) { /* ignore */ }
+  const r = await dialog.showMessageBox({
+    type: 'question',
+    buttons: ['Discard', 'Keep this time'],
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true,
+    title: 'Are you still working?',
+    message: 'Are you still working?',
+    detail: 'No keyboard or mouse activity for ' + away + '. Keep this time as worked, or discard it?',
+  });
+  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(false); } catch (e) { /* ignore */ }
+  return r.response === 1;
+});
 
 // --- smart-idle context: is the screen actually changing, and in what app? ---
 // We keep the last low-res frame and diff against it to measure on-screen motion
@@ -316,6 +356,24 @@ function createWindow() {
     mainWindow.loadFile(path.join(process.resourcesPath, 'web', 'index.html'));
   }
 
+  // Warn on exit while the clock is running: pressing X shows a message that
+  // tracking is still active before letting the app quit.
+  mainWindow.on('close', (e) => {
+    if (allowClose || !currentSessionId) return;
+    e.preventDefault();
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      buttons: ['Keep tracking', 'Stop & quit'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      title: 'The clock is still running',
+      message: 'The clock is still running.',
+      detail: "Your timer is still active. If you quit now it stops tracking. Your tracked time is saved.",
+    });
+    if (choice === 1) { allowClose = true; if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close(); }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     // don't let the toast window keep the app alive after the main window closes
@@ -341,7 +399,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopHook();
-  clearTimeout(shotTimer); clearTimeout(segTimer);
+  clearTimeout(shotTimer);
   if (process.platform !== 'darwin') app.quit();
 });
 

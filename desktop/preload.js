@@ -38,6 +38,10 @@ contextBridge.exposeInMainWorld('ttDesktop', {
   // the installed app version (from package.json), for the UI version label
   getVersion: () => ipcRenderer.invoke('tt:getVersion'),
 
+  // ask "are you still working?" in a centered native dialog; resolves true to
+  // keep the away time, false to discard it
+  askStillWorking: (seconds) => ipcRenderer.invoke('tt:askIdle', seconds),
+
   // tell the main process the upload outcome so the floating toast can update
   // its text ('saved' | 'queued' | 'error')
   notifyShotStatus: (status) => ipcRenderer.invoke('tt:shotStatus', status),

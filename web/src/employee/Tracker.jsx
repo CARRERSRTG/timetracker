@@ -3,7 +3,7 @@ import { sessions as sessionsApi, screenshots as screenshotsApi } from '@shared/
 import {
   APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
-import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower, subscribeShotsChanged } from '../lib/desktop.js';
+import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower, subscribeShotsChanged, desktopAskStillWorking } from '../lib/desktop.js';
 import { queueSession } from '../lib/offlineQueue.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
@@ -269,11 +269,18 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       }
 
       // #1 Idle keep/discard: accrue excluded idle time, and when real input
-      // resumes after an idle stretch, ask whether to keep or discard it.
+      // resumes after an idle stretch, ask whether to keep or discard it. On
+      // desktop this is a centered native pop-up that stays until answered; on
+      // web it's the in-app modal below.
       if (idleNow) idlePendingRef.current += 1;
       if (hadEvent && idlePendingRef.current > 0 && !promptOpenRef.current) {
         promptOpenRef.current = true;
-        setIdlePrompt(idlePendingRef.current);
+        if (IS_DESKTOP) {
+          const secs = idlePendingRef.current;
+          desktopAskStillWorking(secs).then((keep) => resolveIdle(keep === true));
+        } else {
+          setIdlePrompt(idlePendingRef.current);
+        }
       }
 
       const activeThisSec = (windowedActive || productiveNow) && !onBreakRef.current;
