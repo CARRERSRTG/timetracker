@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { screenshots as screenshotsApi } from '@shared/lib/supabase.js';
 import { fmtTime, fmtClock, dateISO, addDaysISO, fmtDayLong } from './lib/helpers.js';
+import { useT } from './lib/i18n.js';
 
 // Upwork-style Work Diary for one person: a date navigator, the day's total
 // tracked time, and screenshots grouped by hour (6 per hour, ~every 10 min),
 // each with a segmented activity bar + timestamp.
 export default function WorkDiary({ shots, sessions = [], onDelete }) {
+  const t = useT();
   const today = dateISO(new Date());
   const [date, setDate] = useState(today);
   const [urls, setUrls] = useState({});
@@ -50,16 +52,16 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
           <button className="btn-ghost btn-sm" onClick={() => setDate((d) => addDaysISO(d, -1))}>←</button>
           <b className="nowrap">{fmtDayLong(date)}</b>
           <button className="btn-ghost btn-sm" disabled={date >= today} onClick={() => setDate((d) => addDaysISO(d, 1))}>→</button>
-          {date !== today && <button className="link" onClick={() => setDate(today)}>Today</button>}
+          {date !== today && <button className="link" onClick={() => setDate(today)}>{t('mgr.diary.today')}</button>}
         </div>
-        <div><b>Total: {fmtClock(totalSec)}</b> <span className="small muted">hrs</span></div>
+        <div><b>{t('mgr.diary.total')} {fmtClock(totalSec)}</b> <span className="small muted">{t('mgr.diary.hrs')}</span></div>
       </div>
 
       {dayShots.length === 0 ? (
-        <p className="muted small" style={{ marginTop: 12 }}>No screenshots on this day.</p>
+        <p className="muted small" style={{ marginTop: 12 }}>{t('mgr.diary.noneDay')}</p>
       ) : hours.map((h) => (
         <div key={h} style={{ marginTop: 14 }}>
-          <div className="small muted" style={{ fontWeight: 600 }}>🟢 {hourLabel(h)} · {byHour[h].length} shots</div>
+          <div className="small muted" style={{ fontWeight: 600 }}>🟢 {hourLabel(h)} · {byHour[h].length} {t('mgr.diary.shots')}</div>
           <div className="shotgrid" style={{ marginTop: 8 }}>
             {byHour[h].slice().sort((a, b) => new Date(a.takenAt || 0) - new Date(b.takenAt || 0)).map((s) => {
               const url = urls[s.path];
@@ -70,12 +72,12 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
                   <a href={url || undefined} target="_blank" rel="noopener noreferrer">
                     {url ? <img src={url} loading="lazy" alt="screenshot" /> : <div className="shot-loading" />}
                   </a>
-                  <div className="meter" title={`Activity ${pct}%`} style={{ marginTop: 4 }}>
+                  <div className="meter" title={t('mgr.diary.activityTitle', { pct })} style={{ marginTop: 4 }}>
                     {Array.from({ length: 10 }).map((_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
                   </div>
                   <div className="small muted">{s.takenAt ? fmtTime(new Date(s.takenAt).getTime()) : '…'} · {pct}%</div>
                   {onDelete && (
-                    <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 4, padding: '2px 6px' }} onClick={() => onDelete(s)}>Delete</button>
+                    <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 4, padding: '2px 6px' }} onClick={() => onDelete(s)}>{t('mgr.diary.delete')}</button>
                   )}
                 </div>
               );

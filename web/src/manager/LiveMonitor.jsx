@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { sessions as sessionsApi } from '@shared/lib/supabase.js';
 import { fmtClock, fmtTime } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
 // "Who's working now" — currently clocked-in sessions, live via realtime.
 export default function LiveMonitor({ users, projects }) {
+  const t = useT();
   const [live, setLive] = useState([]);
   const [now, setNow] = useState(Date.now());
   useEffect(() => sessionsApi.subscribeLive(setLive), []);
@@ -16,20 +18,20 @@ export default function LiveMonitor({ users, projects }) {
   // map the employee's short live_note to a friendly status
   function status(note) {
     if (!note) return null;
-    if (note === 'idle') return { pill: 'wait', text: '⏸ Idle' };
-    if (note === 'break') return { pill: 'wait', text: '☕ On break' };
-    if (note === 'active') return { pill: 'on', text: '⌨ Working' };
+    if (note === 'idle') return { pill: 'wait', text: t('mgr.live.idle') };
+    if (note === 'break') return { pill: 'wait', text: t('mgr.live.break') };
+    if (note === 'active') return { pill: 'on', text: t('mgr.live.working') };
     return { pill: 'on', text: '🟢 ' + note }; // an app name (meeting/reading)
   }
 
   return (
     <div className="card">
       <div className="between">
-        <h2 style={{ margin: 0 }}>Working now</h2>
-        <span className="chip">{rows.length} active</span>
+        <h2 style={{ margin: 0 }}>{t('mgr.tab.live')}</h2>
+        <span className="chip">{t('mgr.live.active', { n: rows.length })}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="muted" style={{ marginTop: 12 }}>Nobody is clocked in right now.</p>
+        <p className="muted" style={{ marginTop: 12 }}>{t('mgr.live.empty')}</p>
       ) : (
         <div className="pbtns" style={{ marginTop: 12 }}>
           {rows.map((s) => {
@@ -47,17 +49,17 @@ export default function LiveMonitor({ users, projects }) {
                 <div style={{ fontWeight: 700 }}>
                   {emp ? emp.name : (s.employeeName || '—')}
                   {st ? <span className={'pill ' + st.pill} style={{ marginLeft: 6 }}>{st.text}</span>
-                    : <span className="pill on" style={{ marginLeft: 6 }}>live</span>}
+                    : <span className="pill on" style={{ marginLeft: 6 }}>{t('mgr.live.livePill')}</span>}
                 </div>
                 <div className="small muted">{proj ? proj.name : '—'}{s.memo ? ' · ' + s.memo : ''}</div>
                 <div className="row between" style={{ marginTop: 6 }}>
                   <span className="timer-big" style={{ fontSize: 26 }}>{fmtClock(elapsed)}</span>
                   <span className="small muted" style={{ textAlign: 'right' }}>
-                    Activity {pct}%<br />since {fmtTime(s.startMs)}
+                    {t('mgr.live.activity', { pct })}<br />{t('mgr.live.since', { time: fmtTime(s.startMs) })}
                   </span>
                 </div>
                 <div className="small muted" style={{ marginTop: 6 }}>
-                  ⌨ {fmtClock(inputActive)} input · 🖥 {fmtClock(screen)} screen · 💤 {fmtClock(idle)} idle
+                  ⌨ {fmtClock(inputActive)} {t('mgr.live.wInput')} · 🖥 {fmtClock(screen)} {t('mgr.live.wScreen')} · 💤 {fmtClock(idle)} {t('mgr.live.wIdle')}
                 </div>
               </div>
             );
@@ -65,7 +67,7 @@ export default function LiveMonitor({ users, projects }) {
         </div>
       )}
       <p className="small muted" style={{ marginTop: 10 }}>
-        Updates live as employees start and stop. Elapsed is wall-clock since they clocked in.
+        {t('mgr.live.foot')}
       </p>
     </div>
   );

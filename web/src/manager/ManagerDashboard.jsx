@@ -7,7 +7,7 @@ import {
   requests as requestsApi,
 } from '@shared/lib/supabase.js';
 import { notify } from '../lib/notify.js';
-import { t } from '../lib/i18n.js';
+import { useT } from '../lib/i18n.js';
 import Tracker from '../employee/Tracker.jsx';
 import EmployeeWeek from '../employee/EmployeeWeek.jsx';
 import MyAccount from '../employee/MyAccount.jsx';
@@ -24,6 +24,7 @@ import Insights from './Insights.jsx';
 import AuditLog from './AuditLog.jsx';
 
 export default function ManagerDashboard({ profile }) {
+  const t = useT();
   const [tab, setTab] = useState('insights');
   const [me, setMe] = useState(profile);
   const [projects, setProjects] = useState([]);
@@ -62,20 +63,20 @@ export default function ManagerDashboard({ profile }) {
   const pending = requests.filter((r) => r.status === 'pending').length;
 
   const TABS = [
-    ['insights', 'Dashboard'],
-    ['live', 'Working now'],
-    ['reports', 'Reports / Pay'],
-    ['requests', 'Requests'],
-    ['projects', 'Projects'],
-    ['assign', 'Assignments'],
-    ['people', 'Employees'],
-    ['users', 'Users'],
-    ['shots', 'Work diary'],
-    ['audit', 'Audit'],
-    ['config', 'Settings'],
-    ['track', 'Track time'],
-    ['myweek', 'My week'],
-    ['account', 'My account'],
+    ['insights', t('mgr.tab.insights')],
+    ['live', t('mgr.tab.live')],
+    ['reports', t('mgr.tab.reports')],
+    ['requests', t('mgr.tab.requests')],
+    ['projects', t('mgr.tab.projects')],
+    ['assign', t('mgr.tab.assign')],
+    ['people', t('mgr.tab.people')],
+    ['users', t('mgr.tab.users')],
+    ['shots', t('mgr.tab.shots')],
+    ['audit', t('mgr.tab.audit')],
+    ['config', t('mgr.tab.config')],
+    ['track', t('tab.track')],
+    ['myweek', t('tab.week')],
+    ['account', t('tab.account')],
   ];
 
   const noProjects = projects.filter((p) => !p.archived).length === 0;
@@ -94,11 +95,11 @@ export default function ManagerDashboard({ profile }) {
 
       {(noProjects || noEmployees) && tab === 'insights' && (
         <div className="banner info">
-          <b>Getting started:</b>{' '}
-          {noProjects && <>Create a <button className="link" onClick={() => setTab('projects')}>project</button>, </>}
-          {noProjects && <>assign someone to it under <button className="link" onClick={() => setTab('assign')}>Assignments</button>, </>}
-          {noEmployees && <>invite employees to register (they'll appear under <button className="link" onClick={() => setTab('people')}>Employees</button> for you to activate), </>}
-          then use <b>View as employee</b> to try tracking.
+          <b>{t('mgr.start.title')}</b>{' '}
+          {noProjects && <>{t('mgr.start.create')} <button className="link" onClick={() => setTab('projects')}>{t('mgr.start.project')}</button>, </>}
+          {noProjects && <>{t('mgr.start.assignMid')} <button className="link" onClick={() => setTab('assign')}>{t('mgr.start.assignments')}</button>, </>}
+          {noEmployees && <>{t('mgr.start.invite')} <button className="link" onClick={() => setTab('people')}>{t('mgr.start.employees')}</button> {t('mgr.start.inviteEnd')} </>}
+          {t('mgr.start.thenUse')} <b>{t('mgr.start.viewAsEmp')}</b> {t('mgr.start.tryTracking')}
         </div>
       )}
 
