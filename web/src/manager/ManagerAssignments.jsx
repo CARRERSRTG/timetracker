@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { assignments as assignmentsApi } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, money } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
 export default function ManagerAssignments({ users, projects, assignments }) {
+  const t = useT();
   const employees = users;
   const activeProjects = projects.filter((p) => !p.archived);
   const empty = {
@@ -29,10 +31,10 @@ export default function ManagerAssignments({ users, projects, assignments }) {
 
   async function save() {
     setErr('');
-    if (!f.employeeUid || !f.projectId) { setErr('Pick an employee and a project.'); return; }
-    if (f.hourlyRate === '') { setErr('Enter the hourly rate.'); return; }
+    if (!f.employeeUid || !f.projectId) { setErr(t('mgr.asn.errPick')); return; }
+    if (f.hourlyRate === '') { setErr(t('mgr.asn.errRate')); return; }
     const dup = assignments.find((a) => a.employeeUid === f.employeeUid && a.projectId === f.projectId && a.id !== editId);
-    if (dup) { setErr('That employee is already assigned to that project.'); return; }
+    if (dup) { setErr(t('mgr.asn.errDup')); return; }
     // NOTE: numeric columns must be null (not '') when empty; assignments has no
     // employee_name column in our schema, so we don't write one.
     const data = {
@@ -57,52 +59,52 @@ export default function ManagerAssignments({ users, projects, assignments }) {
   return (
     <>
       <div className="card">
-        <h2>{editId ? 'Edit assignment' : 'New assignment'}</h2>
+        <h2>{editId ? t('mgr.asn.editTitle') : t('mgr.asn.newTitle')}</h2>
         {err && <div className="banner err">{err}</div>}
         <div className="grid g2">
           <div>
-            <label>Employee</label>
+            <label>{t('mgr.asn.employee')}</label>
             <select value={f.employeeUid} onChange={(e) => upd('employeeUid', e.target.value)}>
-              <option value="">Pick…</option>
-              {employees.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === 'admin' ? ' (manager)' : ''}</option>)}
+              <option value="">{t('mgr.asn.pick')}</option>
+              {employees.map((u) => <option key={u.id} value={u.id}>{u.name}{u.role === 'admin' ? t('mgr.asn.managerSuffix') : ''}</option>)}
             </select>
           </div>
           <div>
-            <label>Project</label>
+            <label>{t('mgr.asn.project')}</label>
             <select value={f.projectId} onChange={(e) => upd('projectId', e.target.value)}>
-              <option value="">Pick…</option>
+              <option value="">{t('mgr.asn.pick')}</option>
               {activeProjects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
         <div className="grid g4" style={{ marginTop: 4 }}>
-          <div><label>Rate/hour ({APP_SETTINGS.currency})</label><input type="number" value={f.hourlyRate} onChange={(e) => upd('hourlyRate', e.target.value)} placeholder="10" /></div>
-          <div><label>Overtime rate ({APP_SETTINGS.currency})</label><input type="number" value={f.overtimeRate} onChange={(e) => upd('overtimeRate', e.target.value)} placeholder="15" /></div>
-          <div><label>Overtime after (h/week)</label><input type="number" value={f.overtimeThreshold} onChange={(e) => upd('overtimeThreshold', e.target.value)} placeholder="44" /></div>
-          <div><label>Weekly limit (h)</label><input type="number" value={f.weeklyLimit} onChange={(e) => upd('weeklyLimit', e.target.value)} placeholder="optional" /></div>
+          <div><label>{t('mgr.asn.rate', { cur: APP_SETTINGS.currency })}</label><input type="number" value={f.hourlyRate} onChange={(e) => upd('hourlyRate', e.target.value)} placeholder="10" /></div>
+          <div><label>{t('mgr.asn.otRate', { cur: APP_SETTINGS.currency })}</label><input type="number" value={f.overtimeRate} onChange={(e) => upd('overtimeRate', e.target.value)} placeholder="15" /></div>
+          <div><label>{t('mgr.asn.otAfter')}</label><input type="number" value={f.overtimeThreshold} onChange={(e) => upd('overtimeThreshold', e.target.value)} placeholder="44" /></div>
+          <div><label>{t('mgr.asn.weeklyLimit')}</label><input type="number" value={f.weeklyLimit} onChange={(e) => upd('weeklyLimit', e.target.value)} placeholder={t('mgr.asn.optional')} /></div>
         </div>
-        <label style={{ marginTop: 4 }}>Payment method</label>
+        <label style={{ marginTop: 4 }}>{t('mgr.asn.payMethod')}</label>
         <select value={f.paymentMethod} onChange={(e) => upd('paymentMethod', e.target.value)}>
-          <option value="">(none)</option>
+          <option value="">{t('mgr.asn.none')}</option>
           {methods.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
         <div className="row" style={{ marginTop: 14 }}>
-          <button onClick={save}>{editId ? 'Save changes' : 'Assign'}</button>
-          {editId && <button className="btn-ghost" onClick={cancel}>Cancel</button>}
+          <button onClick={save}>{editId ? t('common.saveChanges') : t('mgr.asn.assign')}</button>
+          {editId && <button className="btn-ghost" onClick={cancel}>{t('common.cancel')}</button>}
         </div>
         <p className="small muted" style={{ marginTop: 8 }}>
-          The overtime rate applies to hours above the threshold. Time above the weekly limit is not paid.
+          {t('mgr.asn.foot')}
         </p>
       </div>
 
       <div className="card">
-        <h2>Assignments</h2>
-        {assignments.length === 0 ? <p className="muted">No assignments yet.</p> : (
+        <h2>{t('mgr.tab.assign')}</h2>
+        {assignments.length === 0 ? <p className="muted">{t('mgr.asn.empty')}</p> : (
           <table>
             <thead>
               <tr>
-                <th>Employee</th><th>Project</th><th className="right">Rate</th><th className="right">OT</th>
-                <th className="right">OT after</th><th className="right">Limit</th><th>Payment</th><th></th>
+                <th>{t('mgr.asn.employee')}</th><th>{t('mgr.asn.project')}</th><th className="right">{t('mgr.asn.colRate')}</th><th className="right">{t('mgr.asn.colOt')}</th>
+                <th className="right">{t('mgr.asn.colOtAfter')}</th><th className="right">{t('mgr.asn.colLimit')}</th><th>{t('mgr.asn.colPay')}</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -116,8 +118,8 @@ export default function ManagerAssignments({ users, projects, assignments }) {
                   <td className="right nowrap">{a.weeklyLimit == null ? '—' : a.weeklyLimit + 'h'}</td>
                   <td className="small muted">{a.paymentMethod || '—'}</td>
                   <td className="right nowrap">
-                    <button className="btn-ghost btn-sm" onClick={() => startEdit(a)}>Edit</button>{' '}
-                    <button className="btn-danger btn-sm" onClick={() => { if (confirm('Remove this assignment?')) assignmentsApi.remove(a.id); }}>Remove</button>
+                    <button className="btn-ghost btn-sm" onClick={() => startEdit(a)}>{t('common.edit')}</button>{' '}
+                    <button className="btn-danger btn-sm" onClick={() => { if (confirm(t('mgr.asn.removeConfirm'))) assignmentsApi.remove(a.id); }}>{t('common.remove')}</button>
                   </td>
                 </tr>
               ))}

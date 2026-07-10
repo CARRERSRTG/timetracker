@@ -1,6 +1,8 @@
 import { sessions as sessionsApi, requests as requestsApi, audit as auditApi } from '@shared/lib/supabase.js';
 import { fmtClock, weekStartISO } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
+// English labels for the audit log (records stay in one language).
 const LABEL = { add: 'Add time', adjust: 'Adjust time', delete: 'Delete time' };
 
 function tParse(t) { if (!t) return 0; const p = t.split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); }
@@ -14,6 +16,8 @@ function fromRange(date, fromTime, toTime) {
 }
 
 export default function ManagerRequests({ profile, requests, projects, assignments }) {
+  const t = useT();
+  const rLabel = (type) => t('reqtype.' + type);
   const aMap = {};
   assignments.forEach((a) => { aMap[a.id] = a; });
   const projName = (a) => (a && projects[a.projectId] ? projects[a.projectId].name : '—');
@@ -55,7 +59,7 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
       await requestsApi.update(r.id, { status: 'approved', resolvedAt: new Date().toISOString(), resolvedBy: profile.id });
       auditApi.log('Request approved', LABEL[r.type] + ' · ' + (p.employeeName || '') + ' · ' + p.date + (p.hours ? ' · ' + p.hours + 'h' : ''));
     } catch (e) {
-      alert('Could not apply: ' + (e.message || e));
+      alert(t('mgr.req.applyFail', { e: e.message || e }));
     }
   }
 
@@ -68,15 +72,15 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
   return (
     <>
       <div className="card">
-        <h2>Pending requests</h2>
-        {pending.length === 0 ? <p className="muted">No pending requests.</p> : pending.map((r) => {
+        <h2>{t('mgr.req.pendingTitle')}</h2>
+        {pending.length === 0 ? <p className="muted">{t('mgr.req.noPending')}</p> : pending.map((r) => {
           const p = r.payload || {};
           const a = aMap[p.assignmentId];
           return (
             <div className="box" key={r.id} style={{ marginBottom: 10 }}>
               <div className="between">
                 <div>
-                  <div style={{ fontWeight: 700 }}>{p.employeeName} · {LABEL[r.type]}</div>
+                  <div style={{ fontWeight: 700 }}>{p.employeeName} · {rLabel(r.type)}</div>
                   <div className="small muted">
                     {projName(a)} · {p.date}
                     {r.type === 'add' && (p.fromTime ? <> · {p.fromTime}–{p.toTime} (<b>{p.hours} h</b>)</> : <> · <b>{p.hours} h</b></>)}
@@ -85,8 +89,8 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
                   </div>
                 </div>
                 <div className="row">
-                  <button className="btn-ok btn-sm" onClick={() => accept(r)}>Accept</button>
-                  <button className="btn-danger btn-sm" onClick={() => reject(r)}>Reject</button>
+                  <button className="btn-ok btn-sm" onClick={() => accept(r)}>{t('mgr.req.accept')}</button>
+                  <button className="btn-danger btn-sm" onClick={() => reject(r)}>{t('mgr.req.reject')}</button>
                 </div>
               </div>
             </div>
@@ -95,10 +99,10 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
       </div>
 
       <div className="card">
-        <h2>History</h2>
-        {history.length === 0 ? <p className="muted">No history.</p> : (
+        <h2>{t('mgr.req.history')}</h2>
+        {history.length === 0 ? <p className="muted">{t('mgr.req.noHistory')}</p> : (
           <table>
-            <thead><tr><th>Employee</th><th>Type</th><th>Detail</th><th>Status</th></tr></thead>
+            <thead><tr><th>{t('mgr.asn.employee')}</th><th>{t('mgr.req.colType')}</th><th>{t('mgr.req.colDetail')}</th><th>{t('mgr.req.colStatus')}</th></tr></thead>
             <tbody>
               {history.map((r) => {
                 const p = r.payload || {};
@@ -106,9 +110,9 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
                 return (
                   <tr key={r.id}>
                     <td>{p.employeeName}</td>
-                    <td>{LABEL[r.type]}</td>
+                    <td>{rLabel(r.type)}</td>
                     <td className="small muted">{projName(a)} · {p.date}{r.type !== 'delete' && p.hours ? ' · ' + p.hours + ' h' : ''}</td>
-                    <td>{r.status === 'approved' ? <span className="pill on">Approved</span> : <span className="pill off">Rejected</span>}</td>
+                    <td>{r.status === 'approved' ? <span className="pill on">{t('mgr.req.approved')}</span> : <span className="pill off">{t('mgr.req.rejected')}</span>}</td>
                   </tr>
                 );
               })}
