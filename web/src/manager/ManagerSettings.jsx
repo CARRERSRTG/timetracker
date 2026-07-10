@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase, settings as settingsApi } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, BROWSER_TZ, TZ_LIST, DAYS, LOCALE, dateISO } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
 const CUR_PRESETS = [['$', 'US$'], ['L', 'Lempira'], ['€', 'Euro'], ['MX$', 'Peso MX'], ['Q', 'Quetzal']];
 const BACKUP_TABLES = ['profiles', 'projects', 'assignments', 'sessions', 'payrolls', 'requests', 'audit'];
 
 export default function ManagerSettings() {
+  const t = useT();
   const [cur, setCur] = useState(APP_SETTINGS.currency);
   const [tz, setTz] = useState(APP_SETTINGS.timeZone);
   const [wsd, setWsd] = useState(APP_SETTINGS.weekStartDay);
@@ -32,7 +34,7 @@ export default function ManagerSettings() {
   const [working, setWorking] = useState(false);
   const fileRef = useRef(null);
 
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   const upCo = (k, v) => setCo((p) => ({ ...p, [k]: v }));
 
   async function save() {
@@ -62,13 +64,13 @@ export default function ManagerSettings() {
   }
 
   async function backup() {
-    setWorking(true); setDataMsg('Preparing backup…');
+    setWorking(true); setDataMsg(t('mgr.set.preparing'));
     try {
       const out = { _meta: { app: 'time-tracker', at: new Date().toISOString(), version: 1 } };
-      for (const t of BACKUP_TABLES) {
-        const { data, error } = await supabase.from(t).select('*');
+      for (const tbl of BACKUP_TABLES) {
+        const { data, error } = await supabase.from(tbl).select('*');
         if (error) throw error;
-        out[t] = data || [];
+        out[tbl] = data || [];
       }
       out.settings = await settingsApi.get();
       const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
@@ -77,9 +79,9 @@ export default function ManagerSettings() {
       a.href = url; a.download = 'timetracker_backup_' + dateISO(new Date()) + '.json';
       document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-      setDataMsg('Backup downloaded. ' + BACKUP_TABLES.map((t) => t + ': ' + out[t].length).join(', ') + '.');
+      setDataMsg(t('mgr.set.backupDone', { list: BACKUP_TABLES.map((tbl) => tbl + ': ' + out[tbl].length).join(', ') }));
     } catch (e) {
-      setDataMsg('Backup failed: ' + (e.message || e));
+      setDataMsg(t('mgr.set.backupFail', { e: e.message || e }));
     } finally { setWorking(false); }
   }
 
@@ -87,157 +89,157 @@ export default function ManagerSettings() {
     const file = ev.target.files && ev.target.files[0];
     ev.target.value = '';
     if (!file) return;
-    if (!confirm('Restore from this backup?\n\nRecords with the same ID are OVERWRITTEN with the backup version; new records are added. Nothing is deleted.')) return;
-    setWorking(true); setDataMsg('Restoring…');
+    if (!confirm(t('mgr.set.restoreConfirm'))) return;
+    setWorking(true); setDataMsg(t('mgr.set.restoring'));
     try {
       const data = JSON.parse(await file.text());
       let total = 0;
       // profiles first (fk targets), then the rest
-      for (const t of ['profiles', 'projects', 'assignments', 'payrolls', 'sessions', 'requests']) {
-        const arr = data[t] || [];
+      for (const tbl of ['profiles', 'projects', 'assignments', 'payrolls', 'sessions', 'requests']) {
+        const arr = data[tbl] || [];
         if (!arr.length) continue;
-        const { error } = await supabase.from(t).upsert(arr);
+        const { error } = await supabase.from(tbl).upsert(arr);
         if (error) throw error;
         total += arr.length;
       }
       if (data.settings) await supabase.from('settings').update({ data: data.settings }).eq('id', 'app');
-      setDataMsg('Restore complete. ' + total + ' records written. Reload to see everything.');
+      setDataMsg(t('mgr.set.restoreDone', { n: total }));
     } catch (e) {
-      setDataMsg('Restore failed: ' + (e.message || e));
+      setDataMsg(t('mgr.set.restoreFail', { e: e.message || e }));
     } finally { setWorking(false); }
   }
 
   const tzOptions = TZ_LIST.includes(tz) ? TZ_LIST : [tz, ...TZ_LIST];
   let tzPreview = '';
   try { tzPreview = new Date(now).toLocaleString(LOCALE, { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' }); }
-  catch { tzPreview = '(invalid time zone)'; }
+  catch { tzPreview = t('mgr.set.invalidTz'); }
 
   return (
     <div className="card" style={{ maxWidth: 600 }}>
-      <h2>Settings</h2>
-      {saved && <div className="banner ok">Saved. Applies across the app.</div>}
+      <h2>{t('mgr.tab.config')}</h2>
+      {saved && <div className="banner ok">{t('mgr.set.saved')}</div>}
 
-      <label>App name (shown in the top bar)</label>
+      <label>{t('mgr.set.appName')}</label>
       <input value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="TimeTracker" />
 
       <div className="hr" />
-      <h3 style={{ color: 'var(--muted)' }}>Locations</h3>
+      <h3 style={{ color: 'var(--muted)' }}>{t('mgr.set.locations')}</h3>
       <p className="small muted" style={{ marginTop: 0 }}>
-        Each location can have its own pay-week start day. A project inherits its location's start day (or set an override on the project). Match a project's Location field to a name here.
+        {t('mgr.set.locNote')}
       </p>
       {locations.map((l, i) => (
         <div key={i} className="row" style={{ marginBottom: 6 }}>
-          <input value={l.name} onChange={(e) => setLoc(i, 'name', e.target.value)} placeholder="e.g. Remote, SPS office" style={{ flex: 2 }} />
+          <input value={l.name} onChange={(e) => setLoc(i, 'name', e.target.value)} placeholder={t('mgr.set.locPh')} style={{ flex: 2 }} />
           <select value={l.weekStartDay} onChange={(e) => setLoc(i, 'weekStartDay', e.target.value)} style={{ flex: 1, minWidth: 130 }}>
-            <option value="">Company default</option>
-            {DAYS.map((d, di) => <option key={di} value={di}>Starts {d}</option>)}
+            <option value="">{t('mgr.set.companyDefault')}</option>
+            {DAYS.map((d, di) => <option key={di} value={di}>{t('mgr.set.starts', { d })}</option>)}
           </select>
           <button className="btn-danger btn-sm" onClick={() => setLocations((ls) => ls.filter((_, j) => j !== i))}>×</button>
         </div>
       ))}
-      <button className="btn-ghost btn-sm" onClick={() => setLocations((ls) => [...ls, { name: '', weekStartDay: '' }])}>+ Add location</button>
+      <button className="btn-ghost btn-sm" onClick={() => setLocations((ls) => [...ls, { name: '', weekStartDay: '' }])}>{t('mgr.set.addLocation')}</button>
 
       <div className="hr" />
-      <h3 style={{ color: 'var(--muted)' }}>Company (shown on receipts)</h3>
-      <label>Company name</label>
+      <h3 style={{ color: 'var(--muted)' }}>{t('mgr.set.companyTitle')}</h3>
+      <label>{t('mgr.set.companyName')}</label>
       <input value={co.name} onChange={(e) => upCo('name', e.target.value)} placeholder="El Lechón Ardiente S. de R.L." />
-      <label>Address</label>
+      <label>{t('mgr.set.address')}</label>
       <input value={co.address} onChange={(e) => upCo('address', e.target.value)} placeholder="Col. ..., San Pedro Sula, Honduras" />
       <div className="grid g3">
-        <div><label>Tax ID / RTN</label><input value={co.taxId} onChange={(e) => upCo('taxId', e.target.value)} placeholder="0501-..." /></div>
-        <div><label>Phone</label><input value={co.phone} onChange={(e) => upCo('phone', e.target.value)} placeholder="+504 ..." /></div>
-        <div><label>Email</label><input value={co.email} onChange={(e) => upCo('email', e.target.value)} placeholder="pay@company.com" /></div>
+        <div><label>{t('mgr.set.taxId')}</label><input value={co.taxId} onChange={(e) => upCo('taxId', e.target.value)} placeholder="0501-..." /></div>
+        <div><label>{t('mgr.set.phone')}</label><input value={co.phone} onChange={(e) => upCo('phone', e.target.value)} placeholder="+504 ..." /></div>
+        <div><label>{t('mgr.set.email')}</label><input value={co.email} onChange={(e) => upCo('email', e.target.value)} placeholder="pay@company.com" /></div>
       </div>
 
       <div className="hr" />
-      <label>Currency symbol</label>
+      <label>{t('mgr.set.currency')}</label>
       <input value={cur} onChange={(e) => setCur(e.target.value)} placeholder="$" />
       <div className="row" style={{ marginTop: 8 }}>
         {CUR_PRESETS.map(([s, l]) => <button key={s} className="btn-ghost btn-sm" onClick={() => setCur(s)}>{l}</button>)}
       </div>
 
-      <label style={{ marginTop: 14 }}>Time zone</label>
+      <label style={{ marginTop: 14 }}>{t('mgr.set.timezone')}</label>
       <select value={tz} onChange={(e) => setTz(e.target.value)}>
         {tzOptions.map((z) => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}
       </select>
       <p className="small muted" style={{ marginTop: 4 }}>
-        All dates and times use this zone. Current time here: <b>{tzPreview}</b>. Your computer's zone is {BROWSER_TZ.replace(/_/g, ' ')}.
+        {t('mgr.set.tzNote', { cur: tzPreview, zone: BROWSER_TZ.replace(/_/g, ' ') })}
       </p>
 
-      <label style={{ marginTop: 14 }}>Week starts on…</label>
+      <label style={{ marginTop: 14 }}>{t('mgr.set.weekStart')}</label>
       <select value={wsd} onChange={(e) => setWsd(e.target.value)}>
         {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
       </select>
-      <p className="small muted" style={{ marginTop: 4 }}>Default Saturday (Saturday → Friday). Changing this regroups all reports.</p>
+      <p className="small muted" style={{ marginTop: 4 }}>{t('mgr.set.weekNote')}</p>
 
-      <label style={{ marginTop: 14 }}>Pay period</label>
+      <label style={{ marginTop: 14 }}>{t('mgr.set.payPeriod')}</label>
       <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-        <option value="weekly">Weekly</option><option value="biweekly">Biweekly</option><option value="monthly">Monthly</option>
+        <option value="weekly">{t('mgr.proj.weekly')}</option><option value="biweekly">{t('mgr.proj.biweekly')}</option><option value="monthly">{t('mgr.proj.monthly')}</option>
       </select>
 
-      <label style={{ marginTop: 14 }}>Payment methods (comma-separated)</label>
+      <label style={{ marginTop: 14 }}>{t('mgr.set.payMethods')}</label>
       <input value={methods} onChange={(e) => setMethods(e.target.value)} placeholder="Cash, Bank transfer, PayPal" />
 
-      <label style={{ marginTop: 14 }}>Adjustment types (comma-separated)</label>
+      <label style={{ marginTop: 14 }}>{t('mgr.set.adjTypes')}</label>
       <input value={adjTypes} onChange={(e) => setAdjTypes(e.target.value)} placeholder="Bonus, Advance, Deduction" />
 
       <div className="grid g2">
         <div>
-          <label>Screenshot interval (minutes, desktop app)</label>
+          <label>{t('mgr.set.shotInterval')}</label>
           <input type="number" min="1" value={shotMin} onChange={(e) => setShotMin(e.target.value)} placeholder="10" />
         </div>
         <div>
-          <label>Idle limit (minutes, 0 = off)</label>
+          <label>{t('mgr.set.idleLimit')}</label>
           <input type="number" min="0" value={idleMin} onChange={(e) => setIdleMin(e.target.value)} placeholder="5" />
         </div>
       </div>
       <p className="small muted" style={{ marginTop: 4 }}>
-        After the idle limit with no keyboard/mouse input, the timer stops counting; that idle time is excluded from paid hours.
+        {t('mgr.set.idleNote')}
       </p>
 
       <label style={{ marginTop: 14 }}>
         <input type="checkbox" checked={smartIdle} onChange={(e) => setSmartIdle(e.target.checked)} style={{ width: 'auto', marginRight: 8 }} />
-        Smart idle (desktop): count input-idle time when the screen is active in a work app
+        {t('mgr.set.smartIdle')}
       </label>
       {smartIdle && (
         <>
-          <label style={{ marginTop: 8 }}>Work apps (comma-separated, matched against the active window)</label>
+          <label style={{ marginTop: 8 }}>{t('mgr.set.workApps')}</label>
           <textarea value={workApps} onChange={(e) => setWorkApps(e.target.value)} rows={3} placeholder="Meet, Zoom, Teams, Claude, RingCentral, VS Code…" />
           <p className="small muted" style={{ marginTop: 4 }}>
-            When someone is input-idle but the screen is changing (a meeting, a video, reading, code appearing) in one of these apps, the time counts and is labeled with the app — so meetings and reading aren't penalized. A parked app with a frozen screen still counts as idle.
+            {t('mgr.set.workAppsNote')}
           </p>
         </>
       )}
 
       <div className="hr" />
-      <h3 style={{ color: 'var(--muted)' }}>Default setup (can be overridden per employee)</h3>
+      <h3 style={{ color: 'var(--muted)' }}>{t('mgr.set.defaultSetup')}</h3>
       <div className="grid g3">
         <div>
-          <label>Worker type</label>
-          <select value={wtype} onChange={(e) => setWtype(e.target.value)}><option value="remote">Remote</option><option value="inhouse">In-house</option></select>
+          <label>{t('mgr.set.workerType')}</label>
+          <select value={wtype} onChange={(e) => setWtype(e.target.value)}><option value="remote">{t('track.remote')}</option><option value="inhouse">{t('track.inhouse')}</option></select>
         </div>
         <div>
-          <label>Tracking mode</label>
-          <select value={tmode} onChange={(e) => setTmode(e.target.value)}><option value="activity">Full activity</option><option value="inout">Clock in / out only</option></select>
+          <label>{t('mgr.set.trackMode')}</label>
+          <select value={tmode} onChange={(e) => setTmode(e.target.value)}><option value="activity">{t('mgr.set.fullActivity')}</option><option value="inout">{t('mgr.set.inoutOnly')}</option></select>
         </div>
         <div>
-          <label>Lunch & break</label>
-          <select value={breaks} onChange={(e) => setBreaks(e.target.value)}><option value="no">Disabled</option><option value="yes">Enabled</option></select>
+          <label>{t('mgr.set.lunchBreak')}</label>
+          <select value={breaks} onChange={(e) => setBreaks(e.target.value)}><option value="no">{t('mgr.set.disabled')}</option><option value="yes">{t('mgr.set.enabled')}</option></select>
         </div>
       </div>
 
-      <button style={{ marginTop: 16 }} onClick={save}>Save settings</button>
+      <button style={{ marginTop: 16 }} onClick={save}>{t('mgr.set.saveBtn')}</button>
 
       <div className="hr" />
-      <h3 style={{ color: 'var(--muted)' }}>Data backup</h3>
+      <h3 style={{ color: 'var(--muted)' }}>{t('mgr.set.dataBackup')}</h3>
       {dataMsg && <div className="banner info">{dataMsg}</div>}
-      <p className="small muted">Download a full copy of your data (people, projects, time, payments) as a file you can keep safe, or restore it back.</p>
+      <p className="small muted">{t('mgr.set.backupNote')}</p>
       <div className="row">
-        <button className="btn-ghost" disabled={working} onClick={backup}>⬇ Download backup</button>
-        <button className="btn-ghost" disabled={working} onClick={() => fileRef.current && fileRef.current.click()}>⬆ Restore from file</button>
+        <button className="btn-ghost" disabled={working} onClick={backup}>{t('mgr.set.download')}</button>
+        <button className="btn-ghost" disabled={working} onClick={() => fileRef.current && fileRef.current.click()}>{t('mgr.set.restoreBtn')}</button>
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={restore} />
       </div>
-      <p className="small muted" style={{ marginTop: 8 }}>Keep backups private — the file contains everyone's data. Restore merges by record ID; it never deletes.</p>
+      <p className="small muted" style={{ marginTop: 8 }}>{t('mgr.set.backupNote2')}</p>
     </div>
   );
 }
