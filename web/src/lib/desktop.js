@@ -25,6 +25,16 @@ export function subscribeShots(cb) {
 }
 function emitShot(evt) { shotListeners.forEach((cb) => { try { cb(evt); } catch { /* ignore */ } }); }
 
+// Fired right after a screenshot row is written to the DB, so the screenshot
+// views (latest-shot card, work diary) can refresh instantly on this machine
+// instead of waiting for a realtime round-trip.
+const shotsChangedListeners = new Set();
+export function subscribeShotsChanged(cb) {
+  shotsChangedListeners.add(cb);
+  return () => shotsChangedListeners.delete(cb);
+}
+export function emitShotsChanged() { shotsChangedListeners.forEach((cb) => { try { cb(); } catch { /* ignore */ } }); }
+
 // Register the screenshot upload handler once, globally. The desktop main
 // process captures the screen and hands us a dataUrl; we upload it with the
 // authenticated Supabase client (renderer owns auth).
@@ -48,6 +58,7 @@ export function initDesktopShots(getEmployeeUid) {
     const report = (status) => {
       emitShot({ dataUrl: data.dataUrl, at, status });
       try { window.ttDesktop.notifyShotStatus?.(status); } catch { /* ignore */ }
+      if (status === 'saved') emitShotsChanged(); // row is in the DB → refresh views now
     };
     try {
       if (!navigator.onLine) throw new Error('offline');

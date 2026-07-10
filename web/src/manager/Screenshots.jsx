@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, dateISO, fmtHM } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
+import { subscribeShotsChanged } from '../lib/desktop.js';
 import WorkDiary from '../WorkDiary.jsx';
 
 // Manager Work Diary: pick an employee, then browse their day-by-day diary
@@ -13,8 +14,10 @@ export default function Screenshots({ users }) {
   const [uid, setUid] = useState('');
   const [purgeMsg, setPurgeMsg] = useState('');
   const [purging, setPurging] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => screenshotsApi.subscribeRecent(500, setShots), []);
+  useEffect(() => subscribeShotsChanged(() => setRefreshKey((k) => k + 1)), []);
+  useEffect(() => screenshotsApi.subscribeRecent(500, setShots), [refreshKey]);
   useEffect(() => {
     const start = dateISO(Date.now() - 15 * 86400000);
     return sessionsApi.subscribeFromDate(start, setSessions);

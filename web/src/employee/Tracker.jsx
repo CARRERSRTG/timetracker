@@ -3,7 +3,7 @@ import { sessions as sessionsApi, screenshots as screenshotsApi } from '@shared/
 import {
   APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
-import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower } from '../lib/desktop.js';
+import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower, subscribeShotsChanged } from '../lib/desktop.js';
 import { queueSession } from '../lib/offlineQueue.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
@@ -569,7 +569,10 @@ function LimitBar({ usedSec, limitHours }) {
 function LatestShot({ profile, t }) {
   const [shot, setShot] = useState(null);
   const [url, setUrl] = useState('');
-  useEffect(() => screenshotsApi.subscribeByEmployee(profile.id, (rows) => setShot(rows[0] || null)), [profile.id]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // instant refresh the moment a shot uploads on this machine (don't wait for realtime)
+  useEffect(() => subscribeShotsChanged(() => setRefreshKey((k) => k + 1)), []);
+  useEffect(() => screenshotsApi.subscribeByEmployee(profile.id, (rows) => setShot(rows[0] || null)), [profile.id, refreshKey]);
   useEffect(() => {
     if (!shot?.path) { setUrl(''); return; }
     let ok = true;

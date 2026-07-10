@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
+import { subscribeShotsChanged } from '../lib/desktop.js';
 import WorkDiary from '../WorkDiary.jsx';
 
 // Employee Work Diary — own screenshots, Upwork-style (date nav + hourly groups),
@@ -8,8 +9,10 @@ export default function EmployeeScreenshots({ profile }) {
   const [shots, setShots] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  useEffect(() => screenshotsApi.subscribeByEmployee(profile.id, setShots), [profile.id]);
+  useEffect(() => subscribeShotsChanged(() => setRefreshKey((k) => k + 1)), []);
+  useEffect(() => screenshotsApi.subscribeByEmployee(profile.id, setShots), [profile.id, refreshKey]);
   useEffect(() => sessionsApi.subscribeByEmployee(profile.id, setSessions), [profile.id]);
 
   async function del(s) {
