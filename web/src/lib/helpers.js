@@ -167,6 +167,14 @@ export function addPeriod(periodStart, n, payPeriod) {
 }
 export function thisPeriodStart(payPeriod) { return periodStartISO(new Date(), payPeriod); }
 
+// True if the pay week (given its start ISO) has fully ended — its last day is
+// before today in the app timezone. A finished week is a locked timesheet that
+// goes "in review" until a manager marks it paid.
+export function weekIsFinished(weekStart, payPeriod) {
+  const end = periodEndISO(weekStart, payPeriod || APP_SETTINGS.payPeriod || 'weekly');
+  return end < dateISO(new Date());
+}
+
 // A project's pay-week start day: explicit project override → its location's
 // configured start day → the company default (undefined lets weekStartISO use it).
 export function projectWeekStart(project) {

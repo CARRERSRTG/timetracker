@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { payrolls as payrollsApi } from '@shared/lib/supabase.js';
 import {
   fmtClock, fmtTime, money, breaksText, weekStartISO, thisWeekStart, addWeeks, weekLabel, computePay,
-  fmtDayLong, dateISO,
+  fmtDayLong, dateISO, weekIsFinished,
 } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
 // NOTE: schema stores the payroll amount in the `total` column (the original
 // Firebase app used `amount`). We read `total` here; the manager payroll step
 // writes `total`.
 export default function EmployeeWeek({ profile, assignments, sessions }) {
+  const t = useT();
   const [week, setWeek] = useState(thisWeekStart());
   const [batches, setBatches] = useState([]);
   const [openDays, setOpenDays] = useState(() => new Set([dateISO(new Date())])); // today expanded
@@ -21,6 +23,16 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
   const weekSessions = sessions.filter((s) => weekStartISO(s.date) === week);
   const weekBatches = batches.filter((b) => b.weekOf === week);
   const paidTotal = weekBatches.filter((b) => b.paid).reduce((n, b) => n + (b.total || 0), 0);
+
+  // Week status: paid > in-review (finished, awaiting manager) > active (live).
+  const isPaid = weekBatches.some((b) => b.paid);
+  const finished = weekIsFinished(week, 'weekly');
+  const status = isPaid ? 'paid' : finished ? 'review' : 'active';
+  const statusPill = status === 'paid'
+    ? <span className="pill on">{t('emp.week.paidBadge')}</span>
+    : status === 'review'
+      ? <span className="pill wait">{t('emp.week.reviewBadge')}</span>
+      : <span className="pill on">{t('emp.week.activeBadge')}</span>;
 
   const byAssign = {};
   weekSessions.forEach((s) => {
@@ -52,7 +64,10 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
   return (
     <div className="card">
       <div className="between">
-        <h2 style={{ margin: 0 }}>My week</h2>
+        <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+          <h2 style={{ margin: 0 }}>My week</h2>
+          {statusPill}
+        </div>
         <div className="row" style={{ alignItems: 'center' }}>
           <button className="btn-ghost btn-sm" onClick={() => setWeek(addWeeks(week, -1))}>← Previous</button>
           <span className="small nowrap">{weekLabel(week)}</span>
@@ -60,6 +75,9 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
         </div>
       </div>
 
+      {status === 'review' && !isPaid && weekSessions.length > 0 && (
+        <div className="banner info" style={{ marginTop: 12 }}>{t('emp.week.reviewNote')}</div>
+      )}
       {paidTotal > 0 && <div className="banner ok" style={{ marginTop: 12 }}>Paid this week: {money(paidTotal)}.</div>}
 
       <div className="grid g3" style={{ marginTop: 14 }}>
@@ -142,7 +160,9 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
         })
       )}
       <p className="small muted" style={{ marginTop: 10 }}>
-        Entries are grouped by day — tap a day to see its in/out times. To adjust, delete or add time, send a request from the "My requests" tab. The manager must approve it.
+        {status === 'active'
+          ? 'Entries are grouped by day — tap a day to see its in/out times. To adjust, delete or add time, send a request from the "My requests" tab. The manager must approve it.'
+          : t('emp.week.lockedNote')}
       </p>
     </div>
   );

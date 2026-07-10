@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { requests as requestsApi } from '@shared/lib/supabase.js';
-import { APP_SETTINGS, dateISO, fmtClock } from '../lib/helpers.js';
+import { APP_SETTINGS, dateISO, fmtClock, weekIsFinished, weekStartISO } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
 // Request-specific fields live in the `payload` jsonb column (the table only has
 // employee_uid, type, status, payload, resolved_*). Status uses the schema's
@@ -21,6 +22,7 @@ function rangeHours(from, to) {
 }
 
 export default function EmployeeRequests({ profile, assignments, sessions, requests }) {
+  const t = useT();
   const aMap = {};
   assignments.forEach((a) => { aMap[a.id] = a; });
   const [type, setType] = useState('add');
@@ -39,6 +41,11 @@ export default function EmployeeRequests({ profile, assignments, sessions, reque
 
   async function send() {
     setMsg('');
+    // Finished weeks are locked (in review) — no change requests against them.
+    const involved = [];
+    if (type === 'add') involved.push(f.date);
+    else { const s = sessions.find((x) => x.id === f.sessionId); if (s) involved.push(s.date); if (type === 'adjust') involved.push(f.date); }
+    if (involved.some((dt) => dt && weekIsFinished(weekStartISO(dt), 'weekly'))) { setMsg(t('emp.req.weekLocked')); return undefined; }
     try {
       let payload;
       if (type === 'add') {
