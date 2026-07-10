@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { projects as projectsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, DAYS, money } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
-const PERIODS = [['weekly', 'Weekly'], ['biweekly', 'Biweekly'], ['monthly', 'Monthly']];
-const periodLabel = (v) => (PERIODS.find((p) => p[0] === v) || ['', '—'])[1];
+const PERIODS = ['weekly', 'biweekly', 'monthly'];
+const perKey = (v) => ({ weekly: 'mgr.proj.weekly', biweekly: 'mgr.proj.biweekly', monthly: 'mgr.proj.monthly' }[v] || 'mgr.proj.weekly');
 
 export default function ManagerProjects({ projects, assignments, users }) {
+  const t = useT();
+  const periodLabel = (v) => t(perKey(v));
   const empty = {
     name: '', client: '', location: '',
     payPeriod: APP_SETTINGS.payPeriod || 'weekly', category: '', positions: '', weekStartDay: '',
@@ -48,7 +51,7 @@ export default function ManagerProjects({ projects, assignments, users }) {
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
   const cats = {};
-  active.forEach((p) => { const c = p.category || 'Uncategorized'; (cats[c] = cats[c] || []).push(p); });
+  active.forEach((p) => { const c = p.category || t('mgr.proj.uncategorized'); (cats[c] = cats[c] || []).push(p); });
   const catNames = Object.keys(cats).sort();
 
   function ProjectRow({ p }) {
@@ -64,15 +67,15 @@ export default function ManagerProjects({ projects, assignments, users }) {
             <div className="small muted">
               {p.client ? p.client + ' · ' : ''}{p.location || '—'} · {periodLabel(p.payPeriod || 'weekly')}
             </div>
-            {pos ? <div className="small muted">Positions: {pos}</div> : null}
+            {pos ? <div className="small muted">{t('mgr.proj.positionsLabel', { pos })}</div> : null}
             <div className="small" style={{ marginTop: 2 }}>
-              Assigned: {people.length ? people.map((u) => u.name).join(', ') : <span className="muted">nobody</span>}
+              {t('mgr.proj.assigned')} {people.length ? people.map((u) => u.name).join(', ') : <span className="muted">{t('mgr.proj.nobody')}</span>}
             </div>
           </div>
           <div className="row">
-            <button className="btn-ghost btn-sm" onClick={() => setOpenId(openId === p.id ? null : p.id)}>{openId === p.id ? 'Hide' : 'Stats'}</button>
-            <button className="btn-ghost btn-sm" onClick={() => startEdit(p)}>Edit</button>
-            <button className="btn-ghost btn-sm" onClick={() => projectsApi.update(p.id, { archived: !p.archived })}>{p.archived ? 'Restore' : 'Archive'}</button>
+            <button className="btn-ghost btn-sm" onClick={() => setOpenId(openId === p.id ? null : p.id)}>{openId === p.id ? t('common.hide') : t('common.stats')}</button>
+            <button className="btn-ghost btn-sm" onClick={() => startEdit(p)}>{t('common.edit')}</button>
+            <button className="btn-ghost btn-sm" onClick={() => projectsApi.update(p.id, { archived: !p.archived })}>{p.archived ? t('common.restore') : t('common.archive')}</button>
           </div>
         </div>
         {openId === p.id && <ProjectStats project={p} assignments={assignments} />}
@@ -83,47 +86,47 @@ export default function ManagerProjects({ projects, assignments, users }) {
   return (
     <>
       <div className="card">
-        <h2>{editId ? 'Edit project' : 'New project'}</h2>
+        <h2>{editId ? t('mgr.proj.editTitle') : t('mgr.proj.newTitle')}</h2>
         <div className="grid g2">
-          <div><label>Name</label><input value={f.name} onChange={(e) => upd('name', e.target.value)} placeholder="e.g. POS App" /></div>
-          <div><label>Client (optional)</label><input value={f.client} onChange={(e) => upd('client', e.target.value)} placeholder="e.g. El Lechón Ardiente" /></div>
+          <div><label>{t('mgr.proj.name')}</label><input value={f.name} onChange={(e) => upd('name', e.target.value)} placeholder={t('mgr.proj.namePh')} /></div>
+          <div><label>{t('mgr.proj.client')}</label><input value={f.client} onChange={(e) => upd('client', e.target.value)} placeholder={t('mgr.proj.clientPh')} /></div>
         </div>
         <div className="grid g2">
           <div>
-            <label>Location</label>
-            <input list="tt-locations" value={f.location} onChange={(e) => upd('location', e.target.value)} placeholder="e.g. Remote (sets the pay week)" />
+            <label>{t('mgr.proj.location')}</label>
+            <input list="tt-locations" value={f.location} onChange={(e) => upd('location', e.target.value)} placeholder={t('mgr.proj.locationPh')} />
             <datalist id="tt-locations">{(APP_SETTINGS.locations || []).map((l) => <option key={l.name} value={l.name} />)}</datalist>
           </div>
-          <div><label>Category (optional)</label><input value={f.category} onChange={(e) => upd('category', e.target.value)} placeholder="e.g. Development, Sales" /></div>
+          <div><label>{t('mgr.proj.category')}</label><input value={f.category} onChange={(e) => upd('category', e.target.value)} placeholder={t('mgr.proj.categoryPh')} /></div>
         </div>
         <div className="grid g2">
           <div>
-            <label>Payment period</label>
+            <label>{t('mgr.proj.payPeriod')}</label>
             <select value={f.payPeriod} onChange={(e) => upd('payPeriod', e.target.value)}>
-              {PERIODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {PERIODS.map((v) => <option key={v} value={v}>{t(perKey(v))}</option>)}
             </select>
           </div>
-          <div><label>Positions (comma-separated)</label><input value={f.positions} onChange={(e) => upd('positions', e.target.value)} placeholder="e.g. Dispatcher, Sales rep" /></div>
+          <div><label>{t('mgr.proj.positions')}</label><input value={f.positions} onChange={(e) => upd('positions', e.target.value)} placeholder={t('mgr.proj.positionsPh')} /></div>
         </div>
         <div className="grid g2">
           <div>
-            <label>Pay week starts on</label>
+            <label>{t('mgr.proj.weekStart')}</label>
             <select value={f.weekStartDay} onChange={(e) => upd('weekStartDay', e.target.value)}>
-              <option value="">Use company default</option>
+              <option value="">{t('mgr.proj.useDefault')}</option>
               {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
             </select>
           </div>
           <div />
         </div>
         <div className="row" style={{ marginTop: 14 }}>
-          <button onClick={save}>{editId ? 'Save changes' : 'Create project'}</button>
-          {editId && <button className="btn-ghost" onClick={cancel}>Cancel</button>}
+          <button onClick={save}>{editId ? t('mgr.proj.saveChanges') : t('mgr.proj.create')}</button>
+          {editId && <button className="btn-ghost" onClick={cancel}>{t('common.cancel')}</button>}
         </div>
       </div>
 
       <div className="card">
-        <h2>Projects</h2>
-        {active.length === 0 ? <p className="muted">No active projects.</p> : catNames.map((c) => (
+        <h2>{t('mgr.proj.listTitle')}</h2>
+        {active.length === 0 ? <p className="muted">{t('mgr.proj.noneActive')}</p> : catNames.map((c) => (
           <div key={c} style={{ marginBottom: 14 }}>
             <div className="small muted" style={{ textTransform: 'uppercase', letterSpacing: '.04em' }}>{c}</div>
             {cats[c].map((p) => <ProjectRow key={p.id} p={p} />)}
@@ -133,11 +136,11 @@ export default function ManagerProjects({ projects, assignments, users }) {
 
       <div className="card">
         <div className="between">
-          <h2 style={{ margin: 0 }}>Archive {archived.length ? '(' + archived.length + ')' : ''}</h2>
-          <button className="btn-ghost btn-sm" onClick={() => setShowArchive((v) => !v)}>{showArchive ? 'Hide' : 'Show'}</button>
+          <h2 style={{ margin: 0 }}>{t('mgr.proj.archiveTitle')} {archived.length ? '(' + archived.length + ')' : ''}</h2>
+          <button className="btn-ghost btn-sm" onClick={() => setShowArchive((v) => !v)}>{showArchive ? t('common.hide') : t('common.show')}</button>
         </div>
         {showArchive && (archived.length === 0
-          ? <p className="muted" style={{ marginTop: 10 }}>No archived projects.</p>
+          ? <p className="muted" style={{ marginTop: 10 }}>{t('mgr.proj.noneArchived')}</p>
           : <div style={{ marginTop: 10 }}>{archived.map((p) => <ProjectRow key={p.id} p={p} />)}</div>)}
       </div>
     </>
@@ -145,6 +148,7 @@ export default function ManagerProjects({ projects, assignments, users }) {
 }
 
 function ProjectStats({ project, assignments }) {
+  const t = useT();
   const [sessions, setSessions] = useState(null);
   useEffect(() => {
     let live = true;
@@ -154,7 +158,7 @@ function ProjectStats({ project, assignments }) {
 
   const aMap = {};
   (assignments || []).forEach((a) => { aMap[a.id] = a; });
-  if (sessions === null) return <div className="small muted" style={{ marginTop: 8 }}>Loading stats…</div>;
+  if (sessions === null) return <div className="small muted" style={{ marginTop: 8 }}>{t('mgr.proj.loadingStats')}</div>;
 
   let sec = 0, spent = 0;
   sessions.forEach((s) => {
@@ -165,9 +169,9 @@ function ProjectStats({ project, assignments }) {
   });
   return (
     <div className="grid g3" style={{ marginTop: 10 }}>
-      <div className="stat"><div className="n">{(sec / 3600).toFixed(2)} h</div><div className="l">Hours logged</div></div>
-      <div className="stat"><div className="n">{money(spent)}</div><div className="l">Money spent</div></div>
-      <div className="stat"><div className="n">{sessions.length}</div><div className="l">Entries</div></div>
+      <div className="stat"><div className="n">{(sec / 3600).toFixed(2)} h</div><div className="l">{t('mgr.proj.hoursLogged')}</div></div>
+      <div className="stat"><div className="n">{money(spent)}</div><div className="l">{t('mgr.proj.moneySpent')}</div></div>
+      <div className="stat"><div className="n">{sessions.length}</div><div className="l">{t('mgr.proj.entries')}</div></div>
     </div>
   );
 }

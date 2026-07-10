@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sessions as sessionsApi } from '@shared/lib/supabase.js';
 import { addWeeks, thisWeekStart, weekStartISO, fmtISOday, money, computePay } from '../lib/helpers.js';
+import { useT } from '../lib/i18n.js';
 
 const WEEKS = 8;
 
@@ -8,6 +9,7 @@ const WEEKS = 8;
 // table (scales to many people), and top projects. Single-hue marks + status
 // colors (no per-employee rainbow that breaks past ~8 people).
 export default function Insights({ users, projects, assignments }) {
+  const t = useT();
   const startISO = addWeeks(thisWeekStart(), -(WEEKS - 1));
   const [sessions, setSessions] = useState([]);
   const [sort, setSort] = useState({ key: 'hours', dir: 'desc' });
@@ -62,7 +64,7 @@ export default function Insights({ users, projects, assignments }) {
   const projRows = Object.entries(byProj).map(([id, h]) => ({ name: pMap[id]?.name || '(deleted)', hours: h })).sort((a, b) => b.hours - a.hours);
   const topProj = projRows.slice(0, 6);
   const otherProj = projRows.slice(6).reduce((n, r) => n + r.hours, 0);
-  if (otherProj > 0) topProj.push({ name: 'Other', hours: otherProj });
+  if (otherProj > 0) topProj.push({ name: t('mgr.ins.other'), hours: otherProj });
   const maxProj = Math.max(1, ...topProj.map((r) => r.hours));
 
   const hdr = (key, label, right) => (
@@ -75,23 +77,23 @@ export default function Insights({ users, projects, assignments }) {
   return (
     <>
       <div className="grid g4">
-        <div className="stat"><div className="n">{totalHours.toFixed(1)} h</div><div className="l">Hours this week</div></div>
-        <div className="stat"><div className="n">{money(totalCost)}</div><div className="l">Est. payroll this week</div></div>
-        <div className="stat"><div className="n">{empRows.length}</div><div className="l">People tracking</div></div>
-        <div className="stat"><div className="n">{avgActivity}%</div><div className="l">Avg activity</div></div>
+        <div className="stat"><div className="n">{totalHours.toFixed(1)} h</div><div className="l">{t('mgr.ins.hoursWeek')}</div></div>
+        <div className="stat"><div className="n">{money(totalCost)}</div><div className="l">{t('mgr.ins.payWeek')}</div></div>
+        <div className="stat"><div className="n">{empRows.length}</div><div className="l">{t('mgr.ins.people')}</div></div>
+        <div className="stat"><div className="n">{avgActivity}%</div><div className="l">{t('mgr.ins.avgAct')}</div></div>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <h2>Hours per week <span className="small muted">· last {WEEKS} weeks</span></h2>
+        <h2>{t('mgr.ins.perWeek')} <span className="small muted">{t('mgr.ins.lastWeeks', { n: WEEKS })}</span></h2>
         <TrendChart data={trend} />
       </div>
 
       <div className="card">
-        <div className="between"><h2 style={{ margin: 0 }}>Employees this week</h2><span className="small muted">{empRows.length} tracking</span></div>
-        {empRows.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No time tracked yet this week.</p> : (
+        <div className="between"><h2 style={{ margin: 0 }}>{t('mgr.ins.empWeek')}</h2><span className="small muted">{t('mgr.ins.tracking', { n: empRows.length })}</span></div>
+        {empRows.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>{t('mgr.ins.noTime')}</p> : (
           <div style={{ overflowX: 'auto', marginTop: 8 }}>
             <table>
-              <thead><tr>{hdr('name', 'Employee')}{hdr('hours', 'Hours', true)}<th>Load</th>{hdr('activity', 'Activity', true)}{hdr('cost', 'Est. pay', true)}</tr></thead>
+              <thead><tr>{hdr('name', t('mgr.ins.colEmp'))}{hdr('hours', t('mgr.ins.colHours'), true)}<th>{t('mgr.ins.colLoad')}</th>{hdr('activity', t('mgr.ins.colActivity'), true)}{hdr('cost', t('mgr.ins.colPay'), true)}</tr></thead>
               <tbody>
                 {sorted.map((r) => (
                   <tr key={r.uid}>
@@ -113,8 +115,8 @@ export default function Insights({ users, projects, assignments }) {
       </div>
 
       <div className="card">
-        <h2>Top projects this week</h2>
-        {topProj.length === 0 ? <p className="muted">No project time this week.</p> : topProj.map((r) => (
+        <h2>{t('mgr.ins.topProj')}</h2>
+        {topProj.length === 0 ? <p className="muted">{t('mgr.ins.noProj')}</p> : topProj.map((r) => (
           <div key={r.name} style={{ margin: '8px 0' }}>
             <div className="small" style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{r.name}</span><span className="muted">{r.hours.toFixed(1)} h</span>
