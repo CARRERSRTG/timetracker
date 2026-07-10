@@ -4,6 +4,25 @@
   --txt:#e7ecf7; --muted:#93a0bd; --accent:#4f7cff; --accent2:#2ee6a6;
   --danger:#ff5a6a; --warn:#ffb020; --ok:#2ee6a6; --chip:#243052;
 }
+/* Light mode — toggled via data-theme="light" on <html> (see lib/theme.js) */
+:root[data-theme="light"]{
+  --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef2fa; --line:#d7deea;
+  --txt:#1a2233; --muted:#5c6b86; --accent:#3a63e0; --accent2:#0aa578;
+  --danger:#e5384a; --warn:#b7791f; --ok:#0aa578; --chip:#e6ebf5;
+}
+:root[data-theme="light"] .btn-ok{color:#053d2b}
+:root[data-theme="light"] .btn-warn{color:#4a3200}
+:root[data-theme="light"] .pill.on{background:#d6f5e5;color:#0a7a53}
+:root[data-theme="light"] .pill.off{background:#fde0e4;color:#b3243a}
+:root[data-theme="light"] .pill.wait{background:#fdf0cf;color:#8a6400}
+:root[data-theme="light"] .tag-admin{background:#e3d8ff}
+:root[data-theme="light"] .tag-emp{background:#d8ecff}
+:root[data-theme="light"] .banner.warn{background:#fdf3d8;color:#7a5a00;border-color:#eacb7a}
+:root[data-theme="light"] .banner.info{background:#dcecff;color:#1b4b7a;border-color:#a9cdf3}
+:root[data-theme="light"] .banner.err{background:#fde0e4;color:#a3182b;border-color:#f0b3bd}
+:root[data-theme="light"] .banner.ok{background:#d6f5e5;color:#0a6a47;border-color:#a7e6c9}
+:root[data-theme="light"] .pbtn.sel{background:#eaf0ff}
+:root[data-theme="light"] .shot-toast,:root[data-theme="light"] .notif{box-shadow:0 10px 30px rgba(20,30,60,.18)}
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
      background:var(--bg);color:var(--txt);font-size:15px;line-height:1.45}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { auth, authErrorMessage } from '@shared/lib/supabase.js';
 import { useT } from './lib/i18n.js';
 import LangToggle from './LangToggle.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 
 export default function AuthScreen() {
   const t = useT();
@@ -66,7 +67,7 @@ export default function AuthScreen() {
         <div className="card">
           <div className="between" style={{ alignItems: 'center' }}>
             <h2 style={{ margin: 0 }}>{mode === 'login' ? t('auth.signin') : t('auth.create')}</h2>
-            <LangToggle />
+            <div className="row" style={{ alignItems: 'center' }}><ThemeToggle /><LangToggle /></div>
           </div>
           {err && <div className="banner err" style={{ marginTop: 12 }}>{err}</div>}
           {info && <div className="banner ok" style={{ marginTop: 12 }}>{info}</div>}
