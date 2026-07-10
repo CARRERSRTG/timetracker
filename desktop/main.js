@@ -243,6 +243,40 @@ function showShotToast(dataUrl, timeText, status) {
 // Renderer reports the upload outcome so the toast text can update.
 ipcMain.handle('tt:shotStatus', (_evt, status) => { showShotToast(null, lastToast?.timeText, status); return true; });
 
+// ---------------------------------------------------------------------
+// Auto-update wiring. electron-updater downloads new releases from the GitHub
+// `publish` target; we forward its progress to the renderer so the app can show
+// an in-app "update available → downloading → restart to install" banner. The
+// last state is cached so the renderer can query it on mount (avoids a race
+// where an event fires before the UI subscribes).
+// ---------------------------------------------------------------------
+let lastUpdate = { state: 'idle' };
+function sendUpdate(u) {
+  lastUpdate = u;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tt:update', u);
+}
+function setupAutoUpdate() {
+  if (!autoUpdater) return;
+  autoUpdater.autoDownload = true;          // fetch the update as soon as it's found
+  autoUpdater.autoInstallOnAppQuit = true;  // also install on a normal quit
+  autoUpdater.on('checking-for-update', () => sendUpdate({ state: 'checking' }));
+  autoUpdater.on('update-available', (info) => sendUpdate({ state: 'downloading', version: info.version, percent: 0 }));
+  autoUpdater.on('update-not-available', () => sendUpdate({ state: 'none' }));
+  autoUpdater.on('download-progress', (p) => sendUpdate({ state: 'downloading', version: lastUpdate.version, percent: Math.round(p.percent || 0) }));
+  autoUpdater.on('update-downloaded', (info) => sendUpdate({ state: 'ready', version: info.version }));
+  autoUpdater.on('error', (e) => sendUpdate({ state: 'error', message: (e && e.message) || String(e) }));
+}
+ipcMain.handle('tt:getUpdateState', () => lastUpdate);
+ipcMain.handle('tt:checkUpdate', () => {
+  if (autoUpdater && app.isPackaged) autoUpdater.checkForUpdates().catch((e) => sendUpdate({ state: 'error', message: e.message }));
+  return true;
+});
+ipcMain.handle('tt:installUpdate', () => {
+  // give the IPC reply a tick to flush before the app quits to install
+  if (autoUpdater) setImmediate(() => autoUpdater.quitAndInstall());
+  return true;
+});
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -279,9 +313,10 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
-  // only check for updates in a packaged app (not when loading the dev server)
+  // check for updates on every launch (packaged app only, not the dev server)
   if (autoUpdater && !process.env.TT_DEV_URL && app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error('update check failed:', e.message));
+    setupAutoUpdate();
+    autoUpdater.checkForUpdates().catch((e) => console.error('update check failed:', e.message));
   }
   // Auto-stop: when the machine locks or goes to sleep, tell the renderer so it
   // can stop the timer (no point counting time while the user is away/locked).

@@ -41,4 +41,15 @@ contextBridge.exposeInMainWorld('ttDesktop', {
   // tell the main process the upload outcome so the floating toast can update
   // its text ('saved' | 'queued' | 'error')
   notifyShotStatus: (status) => ipcRenderer.invoke('tt:shotStatus', status),
+
+  // --- auto-update ---
+  // subscribe to update progress; cb receives { state, version?, percent?, message? }
+  onUpdate: (cb) => {
+    const listener = (_evt, u) => cb(u);
+    ipcRenderer.on('tt:update', listener);
+    return () => ipcRenderer.removeListener('tt:update', listener);
+  },
+  getUpdateState: () => ipcRenderer.invoke('tt:getUpdateState'),
+  checkForUpdates: () => ipcRenderer.invoke('tt:checkUpdate'),
+  installUpdate: () => ipcRenderer.invoke('tt:installUpdate'),
 });

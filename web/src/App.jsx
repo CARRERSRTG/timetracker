@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { configOk, auth, profiles, settings as settingsApi } from '@shared/lib/supabase.js';
 import { syncAppSettings } from './lib/helpers.js';
-import { initDesktopShots, IS_DESKTOP, desktopGetVersion } from './lib/desktop.js';
+import { initDesktopShots, IS_DESKTOP, desktopGetVersion, desktopOnUpdate, desktopGetUpdateState, desktopCheckUpdate, desktopInstallUpdate } from './lib/desktop.js';
 import { initOfflineQueue, subscribeOfflineStatus } from './lib/offlineQueue.js';
 import { APP_VERSION } from './lib/version.js';
 import { ensureNotifyPermission } from './lib/notify.js';
@@ -138,6 +138,8 @@ function Shell({ profile, appName, onSignOut }) {
         </div>
       </div>
 
+      <UpdateBanner />
+
       {isAdmin && asEmployee && (
         <div className="banner info">{t('shell.viewingAsEmployee')}</div>
       )}
@@ -148,6 +150,7 @@ function Shell({ profile, appName, onSignOut }) {
         {t('shell.focusNote')}
         <br />
         <span style={{ opacity: 0.7 }}>{appName || 'TimeTracker'} v{version} · {edition}</span>
+        {IS_DESKTOP && <> · <button className="link" onClick={() => desktopCheckUpdate()}>Check for updates</button></>}
       </p>
 
       <ScreenshotToast />
@@ -155,6 +158,51 @@ function Shell({ profile, appName, onSignOut }) {
       <OfflineIndicator />
     </div>
   );
+}
+
+// In-app auto-update banner: shows download progress and, when an update is
+// ready, a "Restart & install" button. Desktop only; queries the cached state
+// on mount so it catches events that fired before it subscribed. A manual
+// "Check for updates" (footer) briefly shows checking/up-to-date/error too.
+function UpdateBanner() {
+  const [u, setU] = useState(null);
+  useEffect(() => {
+    if (!IS_DESKTOP) return undefined;
+    let timer = null;
+    const apply = (s) => {
+      setU(s);
+      clearTimeout(timer);
+      // transient states (incl. the automatic launch check) shouldn't linger
+      if (s && (s.state === 'none' || s.state === 'error')) timer = setTimeout(() => setU(null), 5000);
+    };
+    desktopGetUpdateState().then((s) => { if (s) apply(s); });
+    const off = desktopOnUpdate(apply);
+    return () => { off(); clearTimeout(timer); };
+  }, []);
+  if (!IS_DESKTOP || !u) return null;
+  const s = u.state;
+  if (s === 'ready') {
+    return (
+      <div className="banner ok" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <span>✅ Version <b>{u.version}</b> is downloaded and ready to install.</span>
+        <button className="btn-ok btn-sm" onClick={() => desktopInstallUpdate()}>Restart &amp; install now</button>
+      </div>
+    );
+  }
+  if (s === 'downloading') {
+    return (
+      <div className="banner info">
+        ⬇ Downloading update{u.version ? ' v' + u.version : ''}… {u.percent != null ? u.percent + '%' : ''}
+        <div style={{ background: 'var(--line)', borderRadius: 999, height: 6, overflow: 'hidden', marginTop: 6 }}>
+          <div style={{ width: (u.percent || 0) + '%', height: '100%', background: 'var(--accent2)', transition: 'width .3s' }} />
+        </div>
+      </div>
+    );
+  }
+  if (s === 'checking') return <div className="banner info">🔄 Checking for updates…</div>;
+  if (s === 'none') return <div className="banner info">✓ You're on the latest version.</div>;
+  if (s === 'error') return <div className="banner warn">⚠ Update check failed: {u.message || 'unknown error'}</div>;
+  return null;
 }
 
 // Small honest status pill: shown only when offline or when items are still

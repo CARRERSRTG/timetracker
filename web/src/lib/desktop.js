@@ -85,3 +85,19 @@ export async function desktopGetVersion() {
   if (!IS_DESKTOP || !window.ttDesktop.getVersion) return null;
   try { return await window.ttDesktop.getVersion(); } catch { return null; }
 }
+
+// --- auto-update (desktop only; all no-op on web) ---
+export function desktopOnUpdate(cb) {
+  if (!IS_DESKTOP || !window.ttDesktop.onUpdate) return () => {};
+  try { return window.ttDesktop.onUpdate(cb); } catch { return () => {}; }
+}
+export async function desktopGetUpdateState() {
+  if (!IS_DESKTOP || !window.ttDesktop.getUpdateState) return null;
+  try { return await window.ttDesktop.getUpdateState(); } catch { return null; }
+}
+export function desktopCheckUpdate() {
+  try { window.ttDesktop?.checkForUpdates?.(); } catch { /* ignore */ }
+}
+export function desktopInstallUpdate() {
+  try { window.ttDesktop?.installUpdate?.(); } catch { /* ignore */ }
+}
