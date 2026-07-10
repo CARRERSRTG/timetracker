@@ -2,6 +2,10 @@
   "appId": "net.rdztilegroup.timetracker",
   "appName": "Time Tracker",
   "webDir": "dist",
+  "server": {
+    "url": "https://timetracker-pi-brown.vercel.app",
+    "cleartext": false
+  },
   "android": {
     "allowMixedContent": false
   }
