@@ -101,6 +101,10 @@ async function captureAndSend() {
     });
     if (!sources.length) return;
     const dataUrl = sources[0].thumbnail.toDataURL();
+    // Show the floating on-top toast immediately (works even if the main window
+    // is minimized/hidden). The renderer later reports upload status to update it.
+    const timeText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    showShotToast(dataUrl, timeText);
     // The renderer owns the authenticated Supabase client, so it does the upload.
     mainWindow.webContents.send('tt:shot', { sessionId: currentSessionId, dataUrl, activityPercent });
   } catch (e) {
@@ -176,6 +180,69 @@ ipcMain.handle('tt:context', async () => {
   return { app, title, movement };
 });
 
+// ---------------------------------------------------------------------
+// Floating "screenshot captured" toast — a separate always-on-top, frameless,
+// non-focusable window pinned to the bottom-right of the screen, so the user
+// sees each capture even when the main app is minimized or hidden (Upwork-style).
+// ---------------------------------------------------------------------
+const TOAST_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;background:transparent;overflow:hidden;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;-webkit-user-select:none;cursor:default}
+  .card{display:flex;gap:10px;align-items:center;margin:8px;padding:10px;border-radius:12px;
+    background:#171e2e;border:1px solid #2a3556;box-shadow:0 10px 30px rgba(0,0,0,.55);color:#e7ecf7}
+  img{width:96px;height:60px;object-fit:cover;border-radius:8px;background:#000;flex:0 0 auto}
+  .t{font-size:13.5px;font-weight:700}
+  .s{font-size:12px;color:#93a0bd;margin-top:2px}
+</style></head><body>
+  <div class="card"><img id="img" alt=""/><div><div class="t" id="t"></div><div class="s" id="s"></div></div></div>
+  <script>window.__setToast=function(o){
+    document.getElementById('img').src=o.dataUrl||'';
+    document.getElementById('t').textContent=(o.icon||'')+' '+(o.title||'');
+    document.getElementById('s').textContent=o.timeText||'';};
+  </script>
+</body></html>`;
+
+let toastWin = null;
+let toastHideTimer = null;
+let lastToast = null; // { dataUrl, timeText } — so a later status update reuses the same image
+
+function ensureToastWin() {
+  if (toastWin && !toastWin.isDestroyed()) return toastWin;
+  toastWin = new BrowserWindow({
+    width: 340, height: 118, show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    skipTaskbar: true, focusable: false, alwaysOnTop: true,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+  toastWin.setAlwaysOnTop(true, 'screen-saver'); // above normal + fullscreen apps
+  try { toastWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (e) { /* platform */ }
+  toastWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(TOAST_HTML));
+  toastWin.on('closed', () => { toastWin = null; });
+  return toastWin;
+}
+
+function showShotToast(dataUrl, timeText, status) {
+  if (dataUrl) lastToast = { dataUrl, timeText };
+  const t = lastToast || { dataUrl: '', timeText };
+  const title = status === 'queued' ? 'Saved offline — will upload'
+    : status === 'error' ? 'Screenshot failed to upload'
+    : 'Screenshot captured';
+  const icon = status === 'error' ? '⚠' : status === 'queued' ? '💾' : '📸';
+  const win = ensureToastWin();
+  const payload = JSON.stringify({ dataUrl: t.dataUrl, timeText: t.timeText, title, icon });
+  const run = () => { win.webContents.executeJavaScript('window.__setToast(' + payload + ')').catch(() => {}); };
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', run); else run();
+  const { workArea } = screen.getPrimaryDisplay();
+  const [w, h] = win.getSize();
+  win.setPosition(workArea.x + workArea.width - w - 16, workArea.y + workArea.height - h - 16);
+  win.showInactive(); // show WITHOUT stealing focus from the user's current app
+  clearTimeout(toastHideTimer);
+  toastHideTimer = setTimeout(() => { if (toastWin && !toastWin.isDestroyed()) toastWin.hide(); }, 5000);
+}
+
+// Renderer reports the upload outcome so the toast text can update.
+ipcMain.handle('tt:shotStatus', (_evt, status) => { showShotToast(null, lastToast?.timeText, status); return true; });
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -203,7 +270,11 @@ function createWindow() {
     mainWindow.loadFile(path.join(process.resourcesPath, 'web', 'index.html'));
   }
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    // don't let the toast window keep the app alive after the main window closes
+    if (toastWin && !toastWin.isDestroyed()) toastWin.destroy();
+  });
 }
 
 app.whenReady().then(() => {

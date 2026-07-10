@@ -45,14 +45,18 @@ export function initDesktopShots(getEmployeeUid) {
       date: dateISO(at),
       activityPercent: data.activityPercent || 0,
     };
+    const report = (status) => {
+      emitShot({ dataUrl: data.dataUrl, at, status });
+      try { window.ttDesktop.notifyShotStatus?.(status); } catch { /* ignore */ }
+    };
     try {
       if (!navigator.onLine) throw new Error('offline');
       await screenshotsApi.upload(rec);
-      emitShot({ dataUrl: data.dataUrl, at, status: 'saved' });
+      report('saved');
     } catch (e) {
       // Offline or upload failed → buffer the image locally and sync later.
       const queued = await queueShot(rec);
-      emitShot({ dataUrl: data.dataUrl, at, status: queued ? 'queued' : 'error' });
+      report(queued ? 'queued' : 'error');
       if (!queued) console.error('screenshot upload + queue failed', e);
     }
   });

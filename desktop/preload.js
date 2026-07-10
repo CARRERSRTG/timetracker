@@ -37,4 +37,8 @@ contextBridge.exposeInMainWorld('ttDesktop', {
 
   // the installed app version (from package.json), for the UI version label
   getVersion: () => ipcRenderer.invoke('tt:getVersion'),
+
+  // tell the main process the upload outcome so the floating toast can update
+  // its text ('saved' | 'queued' | 'error')
+  notifyShotStatus: (status) => ipcRenderer.invoke('tt:shotStatus', status),
 });
