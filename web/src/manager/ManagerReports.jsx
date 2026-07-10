@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { sessions as sessionsApi, payrolls as payrollsApi, audit as auditApi } from '@shared/lib/supabase.js';
 import {
   APP_SETTINGS, computePay, money, fmtClock, fmtHM, fmtDT, dateISO, weekStartISO, breaksText,
-  periodEndISO, addPeriod, thisPeriodStart, periodLabel, projectWeekStart,
+  periodEndISO, addPeriod, thisPeriodStart, periodLabel, projectWeekStart, weekIsFinished,
 } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
 
@@ -367,6 +367,7 @@ export default function ManagerReports({ profile, users, projects, assignments }
           <button className="btn-ghost btn-sm" onClick={exportCSV} disabled={empIds.length === 0}>{t('mgr.rep.csv')}</button>
           <button className="btn-ghost btn-sm" onClick={() => setWeek(addPeriod(week, -1, payPeriod))}>{t('mgr.rep.prev')}</button>
           <span className="small nowrap">{periodLabel(week, payPeriod)}</span>
+          {weekIsFinished(week, payPeriod) && <span className="pill wait">{t('emp.week.reviewBadge')}</span>}
           <button className="btn-ghost btn-sm" disabled={week >= thisPeriodStart(payPeriod)} onClick={() => setWeek(addPeriod(week, 1, payPeriod))}>{t('mgr.rep.next')}</button>
         </div>
       </div>

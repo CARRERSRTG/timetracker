@@ -5,8 +5,10 @@ import {
   projects as projectsApi,
   sessions as sessionsApi,
   requests as requestsApi,
+  payrolls as payrollsApi,
 } from '@shared/lib/supabase.js';
 import { notify } from '../lib/notify.js';
+import { money, weekLabel } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
 import Tracker from './Tracker.jsx';
 import EmployeeWeek from './EmployeeWeek.jsx';
@@ -24,7 +26,9 @@ export default function EmployeeDashboard({ profile }) {
   const [projects, setProjects] = useState({});
   const [sessions, setSessions] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [payrolls, setPayrolls] = useState([]);
   const prevReqStatus = useRef(null);
+  const prevPaid = useRef(null);
 
   // notify the employee when one of their requests gets approved/rejected
   useEffect(() => {
@@ -40,6 +44,20 @@ export default function EmployeeDashboard({ profile }) {
     }
     prevReqStatus.current = new Map(requests.map((r) => [r.id, r.status]));
   }, [requests]);
+
+  // notify the employee when one of their weeks is marked paid
+  useEffect(() => payrollsApi.subscribeByEmployee(profile.id, setPayrolls), [profile.id]);
+  useEffect(() => {
+    const prev = prevPaid.current;
+    if (prev) {
+      payrolls.forEach((b) => {
+        if (b.paid && !prev.has(b.id)) {
+          notify({ title: t('notify.paidTitle'), body: t('notify.paidBody', { amount: money(b.total || 0), week: weekLabel(b.weekOf) }), tag: 'paid-' + b.id });
+        }
+      });
+    }
+    prevPaid.current = new Set(payrolls.filter((b) => b.paid).map((b) => b.id));
+  }, [payrolls]);
 
   useEffect(() => profilesApi.subscribe(profile.id, (p) => p && setMe(p)), [profile.id]);
   useEffect(() => assignmentsApi.subscribeByEmployee(profile.id, setAssignments), [profile.id]);
