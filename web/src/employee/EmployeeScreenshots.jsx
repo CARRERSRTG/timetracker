@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
-import { subscribeShotsChanged } from '../lib/desktop.js';
+import { subscribeShotsChanged, emitShotsChanged } from '../lib/desktop.js';
 import WorkDiary from '../WorkDiary.jsx';
 
 // Employee Work Diary — own screenshots, Upwork-style (date nav + hourly groups),
@@ -19,7 +19,7 @@ export default function EmployeeScreenshots({ profile }) {
     if (busy) return;
     if (!confirm('Delete this screenshot? This removes it permanently, for your manager too.')) return;
     setBusy(true);
-    try { await screenshotsApi.deleteWithFile({ id: s.id, path: s.path }); }
+    try { await screenshotsApi.deleteWithFile({ id: s.id, path: s.path }); emitShotsChanged(); }
     catch (e) { alert('Could not delete: ' + (e.message || e)); }
     finally { setBusy(false); }
   }

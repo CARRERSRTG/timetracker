@@ -1,0 +1,8 @@
+{
+  "appId": "net.rdztilegroup.timetracker",
+  "appName": "Time Tracker",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}

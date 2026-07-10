@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { screenshots as screenshotsApi, sessions as sessionsApi } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, dateISO, fmtHM } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
-import { subscribeShotsChanged } from '../lib/desktop.js';
+import { subscribeShotsChanged, emitShotsChanged } from '../lib/desktop.js';
 import WorkDiary from '../WorkDiary.jsx';
 
 // Manager Work Diary: pick an employee, then browse their day-by-day diary
@@ -43,6 +43,7 @@ export default function Screenshots({ users }) {
     if (!confirm(msg)) return;
     try {
       await screenshotsApi.deleteWithForfeit({ id: s.id, path: s.path, sessionId: s.sessionId, forfeitSeconds });
+      emitShotsChanged();
     } catch (e) { alert(t('mgr.shots.delFail', { e: e.message || e })); }
   }
 

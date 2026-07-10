@@ -463,9 +463,11 @@ export const screenshots = {
     const { error } = await supabase.from('screenshots').delete().eq('id', id);
     if (error) throw error;
   },
-  // delete a single shot: both the storage file and the metadata row
+  // delete a single shot: the metadata row is what matters (it's what shows in
+  // the diary); removing the storage file is best-effort, so a storage-permission
+  // hiccup never blocks the delete. Orphaned files are swept by retention.
   async deleteWithFile({ id, path }) {
-    if (path) { const { error } = await supabase.storage.from('screenshots').remove([path]); if (error) throw error; }
+    if (path) { try { await supabase.storage.from('screenshots').remove([path]); } catch { /* best-effort */ } }
     const { error } = await supabase.from('screenshots').delete().eq('id', id);
     if (error) throw error;
   },
