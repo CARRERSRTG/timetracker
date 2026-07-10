@@ -431,6 +431,16 @@ export const screenshots = {
     if (error) throw error;
     return rowToCamel(data);
   },
+  // Record a "no activity" slot for a segment with zero input — no image is
+  // captured/stored, just a marker row so the diary shows an empty tile.
+  async insertBlank({ employeeUid, sessionId, date }) {
+    const { data, error } = await supabase
+      .from('screenshots')
+      .insert({ employee_uid: employeeUid, session_id: sessionId || null, path: null, date: date || null, activity_percent: 0, no_activity: true })
+      .select().single();
+    if (error) throw error;
+    return rowToCamel(data);
+  },
   async signedUrl(path, expiresIn = 3600) {
     const { data, error } = await supabase.storage.from('screenshots').createSignedUrl(path, expiresIn);
     if (error) throw error;

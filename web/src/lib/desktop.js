@@ -43,8 +43,16 @@ export function initDesktopShots(getEmployeeUid) {
   if (shotsInit || !IS_DESKTOP) return;
   shotsInit = true;
   window.ttDesktop.onShot(async (data) => {
-    if (!data?.dataUrl) return;
     const at = Date.now();
+    // Blank slot: the segment had no activity → record a marker row (no image).
+    if (data?.blank) {
+      const uid = getEmployeeUid();
+      if (!uid) return;
+      try { await screenshotsApi.insertBlank({ employeeUid: uid, sessionId: data.sessionId || null, date: dateISO(at) }); emitShotsChanged(); }
+      catch (e) { console.error('blank slot insert failed', e); }
+      return;
+    }
+    if (!data?.dataUrl) return;
     emitShot({ dataUrl: data.dataUrl, at, status: 'saving' });
     const employeeUid = getEmployeeUid();
     if (!employeeUid) { emitShot({ dataUrl: data.dataUrl, at, status: 'error' }); return; }

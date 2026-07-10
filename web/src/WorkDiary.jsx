@@ -64,6 +64,16 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
           <div className="small muted" style={{ fontWeight: 600 }}>🟢 {hourLabel(h)} · {byHour[h].length} {t('mgr.diary.shots')}</div>
           <div className="shotgrid" style={{ marginTop: 8 }}>
             {byHour[h].slice().sort((a, b) => new Date(a.takenAt || 0) - new Date(b.takenAt || 0)).map((s) => {
+              const when = s.takenAt ? fmtTime(new Date(s.takenAt).getTime()) : '…';
+              // Blank slot: the segment had no activity, so no screenshot was taken.
+              if (!s.path) {
+                return (
+                  <div key={s.id} className="shot">
+                    <div className="shot-blank">{t('mgr.diary.noActivity')}</div>
+                    <div className="small muted" style={{ marginTop: 4 }}>{when} · —</div>
+                  </div>
+                );
+              }
               const url = urls[s.path];
               const pct = Math.max(0, Math.min(100, s.activityPercent || 0));
               const filled = Math.round(pct / 10);
@@ -75,7 +85,7 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
                   <div className="meter" title={t('mgr.diary.activityTitle', { pct })} style={{ marginTop: 4 }}>
                     {Array.from({ length: 10 }).map((_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
                   </div>
-                  <div className="small muted">{s.takenAt ? fmtTime(new Date(s.takenAt).getTime()) : '…'} · {pct}%</div>
+                  <div className="small muted">{when} · {pct}%</div>
                   {onDelete && (
                     <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 4, padding: '2px 6px' }} onClick={() => onDelete(s)}>{t('mgr.diary.delete')}</button>
                   )}

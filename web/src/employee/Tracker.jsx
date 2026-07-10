@@ -580,13 +580,26 @@ function LatestShot({ profile, t }) {
     return () => { ok = false; };
   }, [shot?.path]);
   if (!shot) return null;
+  const when = shot.takenAt ? timeAgo(new Date(shot.takenAt).getTime()) : '';
+  // Blank slot: no activity in that segment → no screenshot was taken.
+  if (!shot.path) {
+    return (
+      <div className="card">
+        <div className="between">
+          <h2 style={{ margin: 0 }}>{t('track.latestShot')}</h2>
+          <span className="small muted">{when}</span>
+        </div>
+        <div className="shot-blank" style={{ height: 180, maxWidth: 360, marginTop: 10 }}>{t('track.noActivitySeg')}</div>
+      </div>
+    );
+  }
   const pct = Math.max(0, Math.min(100, shot.activityPercent || 0));
   const filled = Math.round(pct / 10);
   return (
     <div className="card">
       <div className="between">
         <h2 style={{ margin: 0 }}>{t('track.latestShot')}</h2>
-        <span className="small muted">{shot.takenAt ? timeAgo(new Date(shot.takenAt).getTime()) : ''}</span>
+        <span className="small muted">{when}</span>
       </div>
       <a className="shot" href={url || undefined} target="_blank" rel="noopener noreferrer" style={{ display: 'block', maxWidth: 360, marginTop: 10 }}>
         {url ? <img src={url} alt="latest screenshot" style={{ height: 'auto' }} /> : <div className="shot-loading" style={{ height: 180 }} />}

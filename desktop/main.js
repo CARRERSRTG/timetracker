@@ -91,6 +91,12 @@ async function captureAndSend() {
   // activity % for this segment = distinct active seconds / seconds elapsed
   const elapsedS = Math.max(1, Math.round((Date.now() - segStartMs) / 1000));
   const activityPercent = Math.max(0, Math.min(100, Math.round((segActiveSeconds / elapsedS) * 100)));
+  // Upwork-style: no keyboard/mouse activity this segment → no screenshot. Send a
+  // blank marker so the diary shows an empty slot (and no image is captured/stored).
+  if (segActiveSeconds === 0) {
+    mainWindow.webContents.send('tt:shot', { sessionId: currentSessionId, blank: true, activityPercent: 0 });
+    return;
+  }
   try {
     const display = screen.getPrimaryDisplay();
     const { width, height } = display.size;

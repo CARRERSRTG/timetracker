@@ -427,3 +427,11 @@ alter table public.profiles add column if not exists deleted_at timestamptz;
 drop policy if exists "sessions update" on public.sessions;
 create policy "sessions update" on public.sessions for update to authenticated
   using (public.is_admin() or (employee_uid = auth.uid() and payroll_id is null));
+
+-- =====================================================================
+--  BLANK (no-activity) SLOTS — Upwork-style. If a 10-min segment had no
+--  keyboard/mouse activity, the desktop app records a marker row (path is
+--  null, no_activity = true) instead of capturing a screenshot, so the work
+--  diary can show an empty slot for that segment.
+-- =====================================================================
+alter table public.screenshots add column if not exists no_activity boolean default false;

@@ -134,6 +134,10 @@ html,body{overflow-x:hidden;-webkit-text-size-adjust:100%}
 
 .actbar{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin:4px 0 2px}
 .actbar i{display:block;height:100%;background:var(--accent2)}
+.shot-blank{width:100%;height:100px;border-radius:6px;border:1px dashed var(--line);
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;
+  color:var(--muted);font-size:12px;
+  background:repeating-linear-gradient(45deg,transparent,transparent 7px,rgba(255,255,255,.03) 7px,rgba(255,255,255,.03) 14px)}
 .shot-loading{width:100%;height:100px;border-radius:6px;background:var(--panel2);
   background-image:linear-gradient(90deg,var(--panel2),var(--line),var(--panel2));
   background-size:200% 100%;animation:shimmer 1.2s infinite}
