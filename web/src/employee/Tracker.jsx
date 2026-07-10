@@ -499,9 +499,43 @@ export default function Tracker({ profile, user, assignments, sessions }) {
         )}
       </div>
 
+      <TrackedTotals sessions={sessions} selected={selected} />
       <LatestShot profile={profile} t={t} />
-      <TodayList sessions={sessions} assignments={assignments} />
     </>
+  );
+}
+
+// Upwork-style "Total hours tracked" for the current contract (selected project):
+// hours today and hours this billable week (against the weekly limit if set).
+// Reads the live session from `sessions` (updated on each 10s tick), so it stays
+// current without double-counting.
+function TrackedTotals({ sessions, selected }) {
+  const today = dateISO(new Date());
+  const wStart = thisWeekStart();
+  const aid = selected?.id;
+  const sumIf = (pred) => sessions.filter(pred).reduce((n, s) => n + (s.durationSeconds || 0), 0);
+  const todaySec = sumIf((s) => s.date === today && (!aid || s.assignmentId === aid));
+  const weekSec = sumIf((s) => weekStartISO(s.date) === wStart && (!aid || s.assignmentId === aid));
+  const limit = selected && selected.weeklyLimit !== '' && selected.weeklyLimit != null ? Number(selected.weeklyLimit) : null;
+  const weekday = new Date().toLocaleDateString(undefined, { weekday: 'short' });
+  return (
+    <div className="card">
+      <h2 style={{ marginBottom: 4 }}>Total hours tracked</h2>
+      {!selected && <p className="small muted" style={{ marginTop: 0 }}>Pick a project to see its today / this-week totals.</p>}
+      <div className="grid g2" style={{ marginTop: 10 }}>
+        <div className="stat">
+          <div className="l">Today ({weekday})</div>
+          <div className="n">{(todaySec / 3600).toFixed(2)} h</div>
+        </div>
+        <div className="stat">
+          <div className="l">This week</div>
+          <div className="n">
+            {(weekSec / 3600).toFixed(2)} h
+            {limit != null ? <span className="muted" style={{ fontSize: 14, fontWeight: 600 }}> of {limit.toFixed(0)} h</span> : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -562,35 +596,3 @@ function LatestShot({ profile, t }) {
   );
 }
 
-function TodayList({ sessions, assignments }) {
-  const aMap = {};
-  assignments.forEach((a) => { aMap[a.id] = a; });
-  const today = dateISO(new Date());
-  const list = sessions.filter((s) => s.date === today).sort((a, b) => (b.startMs || 0) - (a.startMs || 0)).slice(0, 12);
-  if (!list.length) return null;
-  return (
-    <div className="card">
-      <h2>Today</h2>
-      <table>
-        <thead><tr><th>Project</th><th>In → Out</th><th>Note</th><th className="right">Duration</th></tr></thead>
-        <tbody>
-          {list.map((s) => {
-            const a = aMap[s.assignmentId];
-            return (
-              <tr key={s.id}>
-                <td>{a ? a.project.name : '—'}</td>
-                <td className="small nowrap">{fmtTime(s.startMs)} → {s.endMs ? fmtTime(s.endMs) : '—'}</td>
-                <td className="muted">
-                  {s.memo || '—'}
-                  {s.source === 'manual' ? <span className="pill on" style={{ marginLeft: 6 }}>added</span>
-                    : s.source === 'adjusted' ? <span className="pill wait" style={{ marginLeft: 6 }}>adjusted</span> : null}
-                </td>
-                <td className="right nowrap">{fmtClock(s.durationSeconds)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}

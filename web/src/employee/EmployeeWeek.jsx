@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { payrolls as payrollsApi } from '@shared/lib/supabase.js';
 import {
-  fmtClock, fmtDT, fmtTime, money, breaksText, weekStartISO, thisWeekStart, addWeeks, weekLabel, computePay,
+  fmtClock, fmtTime, money, breaksText, weekStartISO, thisWeekStart, addWeeks, weekLabel, computePay,
+  fmtDayLong, dateISO,
 } from '../lib/helpers.js';
 
 // NOTE: schema stores the payroll amount in the `total` column (the original
@@ -10,6 +11,8 @@ import {
 export default function EmployeeWeek({ profile, assignments, sessions }) {
   const [week, setWeek] = useState(thisWeekStart());
   const [batches, setBatches] = useState([]);
+  const [openDays, setOpenDays] = useState(() => new Set([dateISO(new Date())])); // today expanded
+  const toggleDay = (d) => setOpenDays((prev) => { const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n; });
   const aMap = {};
   assignments.forEach((a) => { aMap[a.id] = a; });
 
@@ -24,6 +27,17 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
     if (!byAssign[s.assignmentId]) byAssign[s.assignmentId] = { sec: 0 };
     byAssign[s.assignmentId].sec += s.durationSeconds || 0;
   });
+
+  // group the week's entries by day (most recent first), with a per-day total
+  const byDay = {};
+  weekSessions.forEach((s) => {
+    (byDay[s.date] = byDay[s.date] || { date: s.date, sec: 0, items: [] });
+    byDay[s.date].sec += s.durationSeconds || 0;
+    byDay[s.date].items.push(s);
+  });
+  const dayGroups = Object.values(byDay)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map((d) => ({ ...d, items: d.items.slice().sort((a, b) => (a.startMs || 0) - (b.startMs || 0)) }));
 
   let totalPay = 0, totalSec = 0;
   const rows = Object.entries(byAssign).map(([aid, v]) => {
@@ -85,34 +99,50 @@ export default function EmployeeWeek({ profile, assignments, sessions }) {
 
       <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>This week's entries</h3>
-      {weekSessions.length === 0 ? (
+      {dayGroups.length === 0 ? (
         <p className="muted small">No entries.</p>
       ) : (
-        <table>
-          <thead><tr><th>Day</th><th>In → Out</th><th>Project</th><th>Note</th><th className="right">Duration</th></tr></thead>
-          <tbody>
-            {weekSessions.slice().sort((a, b) => (a.startMs || 0) - (b.startMs || 0)).map((s) => {
-              const a = aMap[s.assignmentId];
-              return (
-                <tr key={s.id}>
-                  <td className="small nowrap">{fmtDT(s.startMs, { weekday: 'short', day: '2-digit' })}</td>
-                  <td className="small nowrap">{fmtTime(s.startMs)} → {s.endMs ? fmtTime(s.endMs) : '—'}</td>
-                  <td className="small">{a ? a.project.name : '—'}</td>
-                  <td className="small muted">
-                    {s.memo || '—'}
-                    {s.source === 'manual' ? <span className="pill on" style={{ marginLeft: 6 }}>added</span>
-                      : s.source === 'adjusted' ? <span className="pill wait" style={{ marginLeft: 6 }}>adjusted</span> : null}
-                    {breaksText(s) && <div className="small muted" style={{ marginTop: 2 }}>{breaksText(s)}</div>}
-                  </td>
-                  <td className="right nowrap small">{fmtClock(s.durationSeconds)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        dayGroups.map((d) => {
+          const open = openDays.has(d.date);
+          return (
+            <div key={d.date} className="box" style={{ marginTop: 8 }}>
+              <div className="between" style={{ cursor: 'pointer', alignItems: 'center' }} onClick={() => toggleDay(d.date)}>
+                <div style={{ fontWeight: 700 }}>
+                  <span className="small muted" style={{ marginRight: 6 }}>{open ? '▾' : '▸'}</span>
+                  {fmtDayLong(d.date)}
+                  <span className="small muted" style={{ marginLeft: 6 }}>· {d.items.length} {d.items.length === 1 ? 'entry' : 'entries'}</span>
+                </div>
+                <b className="nowrap">{fmtClock(d.sec)}</b>
+              </div>
+              {open && (
+                <table style={{ marginTop: 8 }}>
+                  <thead><tr><th>In → Out</th><th>Project</th><th>Note</th><th className="right">Duration</th></tr></thead>
+                  <tbody>
+                    {d.items.map((s) => {
+                      const a = aMap[s.assignmentId];
+                      return (
+                        <tr key={s.id}>
+                          <td className="small nowrap">{fmtTime(s.startMs)} → {s.endMs ? fmtTime(s.endMs) : '—'}</td>
+                          <td className="small">{a ? a.project.name : '—'}</td>
+                          <td className="small muted">
+                            {s.memo || '—'}
+                            {s.source === 'manual' ? <span className="pill on" style={{ marginLeft: 6 }}>added</span>
+                              : s.source === 'adjusted' ? <span className="pill wait" style={{ marginLeft: 6 }}>adjusted</span> : null}
+                            {breaksText(s) && <div className="small muted" style={{ marginTop: 2 }}>{breaksText(s)}</div>}
+                          </td>
+                          <td className="right nowrap small">{fmtClock(s.durationSeconds)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          );
+        })
       )}
       <p className="small muted" style={{ marginTop: 10 }}>
-        To adjust, delete or add time, send a request from the "My requests" tab. The manager must approve it.
+        Entries are grouped by day — tap a day to see its in/out times. To adjust, delete or add time, send a request from the "My requests" tab. The manager must approve it.
       </p>
     </div>
   );
