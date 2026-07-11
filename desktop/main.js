@@ -41,6 +41,7 @@ let lastMoveSec = 0;
 let hookRunning = false;
 let shotTimer = null;    // fires the single screenshot for the current window
 let lastShotMs = 0;      // time of the last capture (to enforce the minimum gap)
+const WINDOW_MS = 10 * 60 * 1000; // fixed 10-minute windows → exactly 6 shots/hour
 const MIN_GAP_MS = 5 * 60 * 1000; // screenshots are never closer than 5 minutes apart
 let currentSessionId = null;
 
@@ -134,12 +135,12 @@ function scheduleNextShot() {
   const hourStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), 0, 0, 0).getTime();
   // the window that contains the earliest time we're allowed to shoot
   const base = Math.max(now, lastShotMs + MIN_GAP_MS);
-  const k = Math.floor((base - hourStart) / segmentMs);
-  let winStart = hourStart + k * segmentMs;
-  let winEnd = winStart + segmentMs;
+  const k = Math.floor((base - hourStart) / WINDOW_MS);
+  let winStart = hourStart + k * WINDOW_MS;
+  let winEnd = winStart + WINDOW_MS;
   let earliest = Math.max(winStart, now, lastShotMs + MIN_GAP_MS);
   if (earliest >= winEnd) { // no room left in this window → roll to the next one
-    winStart = winEnd; winEnd = winStart + segmentMs;
+    winStart = winEnd; winEnd = winStart + WINDOW_MS;
     earliest = Math.max(winStart, now, lastShotMs + MIN_GAP_MS);
   }
   const shotAt = earliest + Math.random() * (winEnd - earliest);
@@ -151,8 +152,8 @@ function scheduleNextShot() {
 }
 
 ipcMain.handle('tt:start', (_evt, opts) => {
-  const intervalMin = Math.max(1, Number(opts?.intervalMin) || 10);
-  segmentMs = intervalMin * 60 * 1000;
+  // cadence is fixed at 6/hour (10-min windows) — the interval setting no longer
+  // changes it, so the rule can't be misconfigured.
   currentSessionId = opts?.sessionId || null;
   startHook();
   clearTimeout(shotTimer); shotTimer = null;
@@ -338,6 +339,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // keep the tracking tick (time + activity metering) running at full rate
+      // when the window is minimized/hidden — otherwise Chromium throttles it and
+      // time is counted inaccurately while the user works in other apps.
+      backgroundThrottling: false,
     },
   });
 
