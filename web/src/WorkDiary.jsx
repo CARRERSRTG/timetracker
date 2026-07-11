@@ -44,6 +44,8 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
     const end = new Date(base.getTime() + 3600000);
     return fmtTime(base.getTime()) + ' – ' + fmtTime(end.getTime());
   };
+  // start time of the i-th 10-minute window of hour h (for slot labels)
+  const slotLabel = (h, i) => { const b = new Date(); b.setHours(h, i * 10, 0, 0); return fmtTime(b.getTime()); };
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -59,42 +61,63 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
 
       {dayShots.length === 0 ? (
         <p className="muted small" style={{ marginTop: 12 }}>{t('mgr.diary.noneDay')}</p>
-      ) : hours.map((h) => (
-        <div key={h} style={{ marginTop: 14 }}>
-          <div className="small muted" style={{ fontWeight: 600 }}>🟢 {hourLabel(h)} · {byHour[h].length} {t('mgr.diary.shots')}</div>
-          <div className="shotgrid" style={{ marginTop: 8 }}>
-            {byHour[h].slice().sort((a, b) => new Date(a.takenAt || 0) - new Date(b.takenAt || 0)).map((s) => {
-              const when = s.takenAt ? fmtTime(new Date(s.takenAt).getTime()) : '…';
-              // Blank slot: the segment had no activity, so no screenshot was taken.
-              if (!s.path) {
+      ) : hours.map((h) => {
+        // Fixed 6 slots per hour — one per 10-minute window (:00 :10 :20 :30 :40 :50).
+        // Each shot goes into its window's slot, so its position shows the segment.
+        const slots = [null, null, null, null, null, null];
+        byHour[h].forEach((s) => {
+          const m = s.takenAt ? new Date(s.takenAt).getMinutes() : 0;
+          const idx = Math.max(0, Math.min(5, Math.floor(m / 10)));
+          if (!slots[idx]) slots[idx] = s;
+        });
+        const count = slots.filter(Boolean).length;
+        return (
+          <div key={h} style={{ marginTop: 14 }}>
+            <div className="small muted" style={{ fontWeight: 600 }}>🟢 {hourLabel(h)} · {count} {t('mgr.diary.shots')}</div>
+            <div className="slotgrid" style={{ marginTop: 8 }}>
+              {slots.map((s, i) => {
+                const label = slotLabel(h, i);
+                // window with no screenshot recorded at all
+                if (!s) {
+                  return (
+                    <div key={i} className="shot" style={{ opacity: 0.75 }}>
+                      <div className="shot-empty">{label}</div>
+                      <div className="small muted" style={{ marginTop: 4 }}>{label} · —</div>
+                    </div>
+                  );
+                }
+                const when = s.takenAt ? fmtTime(new Date(s.takenAt).getTime()) : '…';
+                // recorded blank: the window had no activity, so no image was taken
+                if (!s.path) {
+                  return (
+                    <div key={i} className="shot">
+                      <div className="shot-blank">{t('mgr.diary.noActivity')}</div>
+                      <div className="small muted" style={{ marginTop: 4 }}>{when} · —</div>
+                    </div>
+                  );
+                }
+                const url = urls[s.path];
+                const pct = Math.max(0, Math.min(100, s.activityPercent || 0));
+                const filled = Math.round(pct / 10);
                 return (
-                  <div key={s.id} className="shot">
-                    <div className="shot-blank">{t('mgr.diary.noActivity')}</div>
-                    <div className="small muted" style={{ marginTop: 4 }}>{when} · —</div>
+                  <div key={i} className="shot">
+                    <a href={url || undefined} target="_blank" rel="noopener noreferrer">
+                      {url ? <img src={url} loading="lazy" alt="screenshot" /> : <div className="shot-loading" />}
+                    </a>
+                    <div className="meter" title={t('mgr.diary.activityTitle', { pct })} style={{ marginTop: 4 }}>
+                      {Array.from({ length: 10 }).map((_, j) => <i key={j} className={j < filled ? 'on' : ''} />)}
+                    </div>
+                    <div className="small muted">{when} · {pct}%</div>
+                    {onDelete && (
+                      <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 4, padding: '2px 6px' }} onClick={() => onDelete(s)}>{t('mgr.diary.delete')}</button>
+                    )}
                   </div>
                 );
-              }
-              const url = urls[s.path];
-              const pct = Math.max(0, Math.min(100, s.activityPercent || 0));
-              const filled = Math.round(pct / 10);
-              return (
-                <div key={s.id} className="shot">
-                  <a href={url || undefined} target="_blank" rel="noopener noreferrer">
-                    {url ? <img src={url} loading="lazy" alt="screenshot" /> : <div className="shot-loading" />}
-                  </a>
-                  <div className="meter" title={t('mgr.diary.activityTitle', { pct })} style={{ marginTop: 4 }}>
-                    {Array.from({ length: 10 }).map((_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
-                  </div>
-                  <div className="small muted">{when} · {pct}%</div>
-                  {onDelete && (
-                    <button className="btn-danger btn-sm" style={{ width: '100%', marginTop: 4, padding: '2px 6px' }} onClick={() => onDelete(s)}>{t('mgr.diary.delete')}</button>
-                  )}
-                </div>
-              );
-            })}
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
