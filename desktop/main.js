@@ -173,26 +173,9 @@ ipcMain.handle('tt:getActivity', () => ({ ...activity }));
 
 ipcMain.handle('tt:getVersion', () => app.getVersion());
 
-// Idle "are you still working?" — a centered, on-top native dialog that stays
-// until answered (and flashes the taskbar to grab attention, even if minimized).
-// Returns true to KEEP the away time as worked, false to DISCARD it.
-ipcMain.handle('tt:askIdle', async (_evt, seconds) => {
-  const s = Math.max(0, Math.round(Number(seconds) || 0));
-  const away = s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's';
-  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true); } catch (e) { /* ignore */ }
-  const r = await dialog.showMessageBox({
-    type: 'question',
-    buttons: ['Discard', 'Keep this time'],
-    defaultId: 1,
-    cancelId: 0,
-    noLink: true,
-    title: 'Are you still working?',
-    message: 'Are you still working?',
-    detail: 'No keyboard or mouse activity for ' + away + '. Keep this time as worked, or discard it?',
-  });
-  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(false); } catch (e) { /* ignore */ }
-  return r.response === 1;
-});
+// The "are you still working?" idle prompt was removed — the tracker no longer
+// interrupts the user or discards time. (The tt:askIdle handler that showed a
+// centered native dialog is intentionally gone.)
 
 // --- smart-idle context: is the screen actually changing, and in what app? ---
 // We keep the last low-res frame and diff against it to measure on-screen motion

@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sessions as sessionsApi, screenshots as screenshotsApi } from '@shared/lib/supabase.js';
+import { sessions as sessionsApi, screenshots as screenshotsApi, auth as authApi } from '@shared/lib/supabase.js';
 import {
   APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
-import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower, subscribeShotsChanged, desktopAskStillWorking } from '../lib/desktop.js';
+import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower, subscribeShotsChanged } from '../lib/desktop.js';
 import { queueSession } from '../lib/offlineQueue.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
 
 const METER_BARS = 20; // rolling activity window shown as bars
-const MOVEMENT_THRESHOLD = 0.02; // ≥2% of the sampled screen changed = "moving"
+const MOVEMENT_THRESHOLD = 0.005; // ≥0.5% of the sampled screen changed = "moving" (sensitive: a meeting/video/streaming Claude session counts)
 const ACTIVE_WINDOW_SEC = 12;    // one input keeps you "active" this many seconds (gentler meter)
 
 export default function Tracker({ profile, user, assignments, sessions }) {
@@ -57,14 +57,9 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const ctxRef = useRef(null);          // last {app,title,movement} probe
   const ctxProbeRef = useRef(0);        // countdown to next context probe
   const [isIdle, setIsIdle] = useState(false);
-  const [ctxApp, setCtxApp] = useState(''); // work app recognized during idle (label)
-  const idlePendingRef = useRef(0);         // idle seconds accrued but not yet kept/discarded
-  const promptOpenRef = useRef(false);      // is the keep/discard prompt currently showing?
-  const [idlePrompt, setIdlePrompt] = useState(0); // seconds offered in the prompt (0 = hidden)
+  const [ctxApp, setCtxApp] = useState(''); // app recognized via on-screen motion (label)
 
-  const idleLimitSec = Number(APP_SETTINGS.idleLimitMin) > 0 ? Number(APP_SETTINGS.idleLimitMin) * 60 : Infinity;
   const smartIdle = APP_SETTINGS.smartIdle !== false;
-  const workApps = Array.isArray(APP_SETTINGS.workApps) ? APP_SETTINGS.workApps : [];
 
   const selected = assignments.find((a) => a.id === assignmentId);
   const shotMin = Number(APP_SETTINGS.screenshotIntervalMin) || DESKTOP_SHOT_MIN;
@@ -168,13 +163,17 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
     secHadEventRef.current = false; lastActTotalRef.current = 0;
     idleStreakRef.current = 0; idleRef.current = 0; setIsIdle(false);
-    idlePendingRef.current = 0; promptOpenRef.current = false; setIdlePrompt(0);
     ctxRef.current = null; ctxProbeRef.current = 0; setCtxApp(''); screenSecRef.current = 0;
     startMsRef.current = Date.now();
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
     setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     const now = Date.now();
     try {
+      // Make sure our auth token is live before the first write. If it's stale,
+      // Postgres RLS would reject the insert ("new row violates row-level
+      // security policy") — this refreshes the token so the user no longer has
+      // to restart the app to clear it.
+      await authApi.ensureSession().catch(() => {});
       const row = await sessionsApi.insert({
         employeeUid: profile.id,
         employeeName: profile.name,
@@ -235,56 +234,31 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       if (hadEvent) activeWindowRef.current = ACTIVE_WINDOW_SEC;
       const windowedActive = activeWindowRef.current > 0;
       if (activeWindowRef.current > 0) activeWindowRef.current -= 1;
-      // Idle detection: after idleLimit seconds of no input (and not on break),
-      // stop counting — UNLESS smart idle recognizes real screen activity in a
-      // work app (a meeting, reading, a video, code appearing), which counts and
-      // is labeled with the app. Parking an app with a frozen screen still idles.
-      let idleNow = false;
+
+      // On-screen motion counts as activity even without keyboard/mouse input:
+      // a meeting, a video, streaming text, a running Claude session all move the
+      // screen. Probe periodically (capture isn't free) whenever there's no recent
+      // input to fill in. No work-app allowlist — any real motion counts.
       let productiveNow = false;
       let appLabel = '';
-      if (onBreakRef.current) {
-        idleStreakRef.current = 0;
-      } else if (windowedActive) {
-        idleStreakRef.current = 0;
-      } else {
-        idleStreakRef.current++;
-        if (idleStreakRef.current > idleLimitSec) {
-          if (smartIdle && IS_DESKTOP) {
-            // probe the screen/app every few seconds (capture is not free)
-            ctxProbeRef.current -= 1;
-            if (ctxProbeRef.current <= 0) {
-              ctxProbeRef.current = 4;
-              desktopGetContext().then((c) => { if (c) ctxRef.current = c; }).catch(() => {});
-            }
-            const c = ctxRef.current || {};
-            const hay = ((c.app || '') + ' ' + (c.title || '')).toLowerCase();
-            const isWork = hay.trim() && workApps.some((k) => hay.includes(String(k).toLowerCase()));
-            const moving = (c.movement || 0) >= MOVEMENT_THRESHOLD;
-            if (isWork && moving) { productiveNow = true; appLabel = c.app || c.title || ''; screenSecRef.current += 1; }
-            else { idleRef.current += 1; idleNow = true; }
-          } else {
-            idleRef.current += 1; idleNow = true;
-          }
+      if (smartIdle && IS_DESKTOP && !onBreakRef.current && !windowedActive) {
+        ctxProbeRef.current -= 1;
+        if (ctxProbeRef.current <= 0) {
+          ctxProbeRef.current = 4;
+          desktopGetContext().then((c) => { if (c) ctxRef.current = c; }).catch(() => {});
+        }
+        const c = ctxRef.current || {};
+        if ((c.movement || 0) >= MOVEMENT_THRESHOLD) {
+          productiveNow = true; appLabel = c.app || c.title || ''; screenSecRef.current += 1;
         }
       }
 
-      // #1 Idle keep/discard: accrue excluded idle time, and when real input
-      // resumes after an idle stretch, ask whether to keep or discard it. On
-      // desktop this is a centered native pop-up that stays until answered; on
-      // web it's the in-app modal below.
-      if (idleNow) idlePendingRef.current += 1;
-      if (hadEvent && idlePendingRef.current > 0 && !promptOpenRef.current) {
-        promptOpenRef.current = true;
-        if (IS_DESKTOP) {
-          const secs = idlePendingRef.current;
-          desktopAskStillWorking(secs).then((keep) => resolveIdle(keep === true));
-        } else {
-          setIdlePrompt(idlePendingRef.current);
-        }
-      }
-
+      // The "are you still working?" prompt is removed: we never interrupt the
+      // user and never discard time. The clock keeps counting; the activity %
+      // simply reflects input + on-screen motion.
       const activeThisSec = (windowedActive || productiveNow) && !onBreakRef.current;
       if (activeThisSec) activeSecondsRef.current += 1;
+      const idleNow = !activeThisSec && !onBreakRef.current;
       if (idleNow !== isIdle) setIsIdle(idleNow);
       if (appLabel !== ctxApp) setCtxApp(appLabel);
 
@@ -347,20 +321,10 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     } finally {
       if (IS_DESKTOP && window.ttDesktop) { try { window.ttDesktop.stop(); } catch { /* ignore */ } }
       sessionIdRef.current = null;
-      idlePendingRef.current = 0; promptOpenRef.current = false; setIdlePrompt(0);
       setRunning(false); onBreakRef.current = null; setOnBreak(null); setIsIdle(false); setCtxApp('');
       setWorked(0); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
       setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     }
-  }
-
-  // Resolve the idle prompt: keep credits the away time back as worked time
-  // (by reducing the excluded-idle total); discard leaves it excluded.
-  function resolveIdle(keep) {
-    if (keep) idleRef.current = Math.max(0, idleRef.current - idlePendingRef.current);
-    idlePendingRef.current = 0;
-    promptOpenRef.current = false;
-    setIdlePrompt(0);
   }
 
   function toggleBreak(kind) {
@@ -382,18 +346,6 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
   return (
     <>
-      {idlePrompt > 0 && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 9998 }}>
-          <div className="card" style={{ maxWidth: 380, margin: 0 }}>
-            <h2 style={{ marginTop: 0 }}>Were you working?</h2>
-            <p className="small muted">No keyboard or mouse activity for <b>{fmtClock(idlePrompt)}</b>. Keep this time as worked, or discard it?</p>
-            <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-              <button className="btn-ghost" onClick={() => resolveIdle(false)}>Discard</button>
-              <button className="btn-ok" onClick={() => resolveIdle(true)}>Keep it</button>
-            </div>
-          </div>
-        </div>
-      )}
       {assignments.length === 0 && (
         <div className="banner info">{t('track.noProjects')}</div>
       )}
