@@ -159,6 +159,10 @@ ipcMain.handle('tt:start', (_evt, opts) => {
   clearTimeout(shotTimer); shotTimer = null;
   lastShotMs = 0; // allow the first shot to happen within the current window
   scheduleNextShot();
+  // Confirm to the user that the clock started — a floating on-top toast (same
+  // style as the screenshot notice) that shows even if the window is minimized.
+  const timeText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  showInfoToast('Time tracking started', timeText, '▶️');
   return { ok: true };
 });
 
@@ -226,7 +230,8 @@ const TOAST_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 </style></head><body>
   <div class="card"><img id="img" alt=""/><div><div class="t" id="t"></div><div class="s" id="s"></div></div></div>
   <script>window.__setToast=function(o){
-    document.getElementById('img').src=o.dataUrl||'';
+    var img=document.getElementById('img');
+    if(o.dataUrl){img.src=o.dataUrl;img.style.display='';}else{img.removeAttribute('src');img.style.display='none';}
     document.getElementById('t').textContent=(o.icon||'')+' '+(o.title||'');
     document.getElementById('s').textContent=o.timeText||'';};
   </script>
@@ -272,6 +277,21 @@ function showShotToast(dataUrl, timeText, status) {
 
 // Renderer reports the upload outcome so the toast text can update.
 ipcMain.handle('tt:shotStatus', (_evt, status) => { showShotToast(null, lastToast?.timeText, status); return true; });
+
+// Generic text-only floating toast (no image) — reuses the same on-top window as
+// the screenshot toast so notices are visible even when the app is minimized.
+function showInfoToast(title, subtitle, icon) {
+  const win = ensureToastWin();
+  const payload = JSON.stringify({ dataUrl: '', timeText: subtitle || '', title: title || '', icon: icon || '' });
+  const run = () => { win.webContents.executeJavaScript('window.__setToast(' + payload + ')').catch(() => {}); };
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', run); else run();
+  const { workArea } = screen.getPrimaryDisplay();
+  const [w, h] = win.getSize();
+  win.setPosition(workArea.x + workArea.width - w - 16, workArea.y + workArea.height - h - 16);
+  win.showInactive();
+  clearTimeout(toastHideTimer);
+  toastHideTimer = setTimeout(() => { if (toastWin && !toastWin.isDestroyed()) toastWin.hide(); }, 5000);
+}
 
 // ---------------------------------------------------------------------
 // Auto-update wiring. electron-updater downloads new releases from the GitHub

@@ -1,7 +1,7 @@
 {
   "name": "desktop",
   "private": true,
-  "version": "0.0.25",
+  "version": "0.0.26",
   "description": "Time Tracker desktop app (Electron, Windows)",
   "author": "RDZ Tile Group",
   "main": "main.js",
