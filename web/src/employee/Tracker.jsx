@@ -168,40 +168,57 @@ export default function Tracker({ profile, user, assignments, sessions }) {
     setWorked(0); setOnBreak(null); setBreaks({ lunch: 0, brk: 0 }); setBreakList([]);
     setActivePct(0); setMeter(new Array(METER_BARS).fill(false));
     const now = Date.now();
+    const payload = {
+      employeeUid: profile.id,
+      employeeName: profile.name,
+      projectId: selected.projectId,
+      assignmentId: selected.id,
+      memo: memo.trim(),
+      weekOf: weekStartISO(now),
+      date: dateISO(now),
+      startMs: startMsRef.current,
+      endMs: startMsRef.current,
+      durationSeconds: 0,
+      activeSeconds: 0,
+      keystrokes: 0,
+      clicks: 0,
+      lunchSeconds: 0,
+      breakSeconds: 0,
+      breakEvents: [],
+      manual: false,
+      source: 'timer',
+      isLive: true,
+    };
     try {
       // Make sure our auth token is live before the first write. If it's stale,
-      // Postgres RLS would reject the insert ("new row violates row-level
-      // security policy") — this refreshes the token so the user no longer has
-      // to restart the app to clear it.
+      // Postgres RLS rejects the insert ("new row violates row-level security
+      // policy") because auth.uid() comes back null — refresh so the user no
+      // longer has to restart the app to clear it.
       await authApi.ensureSession().catch(() => {});
-      const row = await sessionsApi.insert({
-        employeeUid: profile.id,
-        employeeName: profile.name,
-        projectId: selected.projectId,
-        assignmentId: selected.id,
-        memo: memo.trim(),
-        weekOf: weekStartISO(now),
-        date: dateISO(now),
-        startMs: startMsRef.current,
-        endMs: startMsRef.current,
-        durationSeconds: 0,
-        activeSeconds: 0,
-        keystrokes: 0,
-        clicks: 0,
-        lunchSeconds: 0,
-        breakSeconds: 0,
-        breakEvents: [],
-        manual: false,
-        source: 'timer',
-        isLive: true,
-      });
+      let row;
+      try {
+        row = await sessionsApi.insert(payload);
+      } catch (e) {
+        // RLS rejection (Postgres 42501) → almost always a stale/absent JWT.
+        // Force a fresh token and retry once before giving up.
+        const msg = String((e && (e.message || e.code)) || '').toLowerCase();
+        const isRls = msg.includes('row-level security') || msg.includes('42501') || e?.code === '42501';
+        if (!isRls) throw e;
+        await authApi.forceRefresh();
+        row = await sessionsApi.insert(payload);
+      }
       sessionIdRef.current = row.id;
       setRunning(true);
       if (IS_DESKTOP && window.ttDesktop) {
         try { window.ttDesktop.start({ sessionId: row.id, intervalMin: shotMin }); } catch { /* ignore */ }
       }
     } catch (e) {
-      alert('Could not start tracking: ' + (e.message || e));
+      const msg = String((e && (e.message || e.code)) || '').toLowerCase();
+      if (msg.includes('row-level security') || msg.includes('42501') || e?.code === '42501') {
+        alert('Could not start tracking: your login session expired. Please sign out and sign back in, then try again.');
+      } else {
+        alert('Could not start tracking: ' + (e.message || e));
+      }
       return;
     }
     tickRef.current = setInterval(async () => {

@@ -157,15 +157,25 @@ export const auth = {
   // Make sure we hold a live access token before doing an authenticated write.
   // Without this, a write can fire while the token is missing/expired — Postgres
   // sees auth.uid() = null and RLS rejects the row ("new row violates row-level
-  // security policy"), which used to only clear after an app restart. Returns the
-  // user, refreshing the token first if the current one is stale.
+  // security policy"), which used to only clear after an app restart. Refreshes
+  // the token if it's missing or close to expiring, and returns the user.
   async ensureSession() {
-    let { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const nowSec = Math.floor(Date.now() / 1000);
+    // refresh if there's no session, or the access token expires within 60s
+    if (!session || !session.expires_at || session.expires_at - nowSec < 60) {
       await supabase.auth.refreshSession().catch(() => {});
-      ({ data: { user } } = await supabase.auth.getUser());
     }
+    const { data: { user } } = await supabase.auth.getUser();
     return user;
+  },
+
+  // Force a token refresh regardless of expiry — used to recover from an RLS
+  // rejection (auth.uid() came back null) by getting a fresh JWT, then retrying.
+  async forceRefresh() {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    return data.user ?? null;
   },
 
   // callback(user|null, session|null)
