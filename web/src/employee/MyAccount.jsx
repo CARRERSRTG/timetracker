@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { profiles as profilesApi, auth } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, effWorkerType, effTrackMode, effBreaks } from '../lib/helpers.js';
+import ThemeSetting from '../ThemeSetting.jsx';
 
 export default function MyAccount({ me }) {
   const [f, setF] = useState(blank(me));
@@ -61,6 +62,8 @@ export default function MyAccount({ me }) {
         <span className="chip">{tm === 'activity' ? 'Activity tracking' : 'Clock in / out only'}</span>
         <span className="chip">{br ? 'Lunch & break: on' : 'Lunch & break: off'}</span>
       </div>
+      <div className="hr" />
+      <ThemeSetting />
       <ChangePassword />
     </div>
   );

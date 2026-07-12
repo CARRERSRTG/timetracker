@@ -7,7 +7,6 @@ import { APP_VERSION } from './lib/version.js';
 import { ensureNotifyPermission } from './lib/notify.js';
 import { useT } from './lib/i18n.js';
 import LangToggle from './LangToggle.jsx';
-import ThemeToggle from './ThemeToggle.jsx';
 import AuthScreen from './AuthScreen.jsx';
 import EmployeeDashboard from './employee/EmployeeDashboard.jsx';
 import ManagerDashboard from './manager/ManagerDashboard.jsx';
@@ -134,7 +133,6 @@ function Shell({ profile, appName, onSignOut }) {
               {asEmployee ? t('shell.backToManager') : t('shell.viewAsEmployee')}
             </button>
           )}
-          <ThemeToggle />
           <LangToggle />
           <button className="btn-ghost btn-sm" onClick={onSignOut}>{t('shell.signOut')}</button>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase, settings as settingsApi } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, BROWSER_TZ, TZ_LIST, DAYS, LOCALE, dateISO } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
+import ThemeSetting from '../ThemeSetting.jsx';
 
 const CUR_PRESETS = [['$', 'US$'], ['L', 'Lempira'], ['€', 'Euro'], ['MX$', 'Peso MX'], ['Q', 'Quetzal']];
 const BACKUP_TABLES = ['profiles', 'projects', 'assignments', 'sessions', 'payrolls', 'requests', 'audit'];
@@ -121,6 +122,9 @@ export default function ManagerSettings() {
 
       <label>{t('mgr.set.appName')}</label>
       <input value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="TimeTracker" />
+
+      <div className="hr" />
+      <ThemeSetting />
 
       <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>{t('mgr.set.locations')}</h3>
