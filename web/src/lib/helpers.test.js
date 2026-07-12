@@ -48,6 +48,51 @@ describe('computePay', () => {
     expect(r.pay).toBe(500);
     expect(r.overLimit).toBe(0);
   });
+
+  it('pays nothing for zero hours', () => {
+    const r = computePay(0, { hourlyRate: 20, overtimeRate: 30, overtimeThreshold: 40, weeklyLimit: 44 });
+    expect(r).toMatchObject({ pay: 0, reg: 0, ot: 0, billable: 0, overLimit: 0 });
+  });
+
+  it('pays nothing when no rate is set', () => {
+    const r = computePay(10, {});
+    expect(r.pay).toBe(0);
+    expect(r.rate).toBe(0);
+  });
+
+  it('handles fractional hours to the cent', () => {
+    const r = computePay(8.5, { hourlyRate: 12.5 });
+    expect(r.pay).toBe(106.25);
+  });
+
+  it('a weekly limit below the OT threshold prevents any overtime', () => {
+    // 50 worked, OT would start at 40, but the 35 h limit caps billable first
+    const r = computePay(50, { hourlyRate: 10, overtimeRate: 15, overtimeThreshold: 40, weeklyLimit: 35 });
+    expect(r.billable).toBe(35);
+    expect(r.overLimit).toBe(15);
+    expect(r.reg).toBe(35);
+    expect(r.ot).toBe(0);
+    expect(r.pay).toBe(350);
+  });
+
+  it('an OT threshold of 0 makes every hour overtime', () => {
+    const r = computePay(10, { hourlyRate: 10, overtimeRate: 15, overtimeThreshold: 0 });
+    expect(r.reg).toBe(0);
+    expect(r.ot).toBe(10);
+    expect(r.pay).toBe(150);
+  });
+
+  it('applies an OT rate even when it is lower than the base rate', () => {
+    const r = computePay(50, { hourlyRate: 10, overtimeRate: 5, overtimeThreshold: 40 });
+    expect(r.pay).toBe(40 * 10 + 10 * 5); // 450 — no implicit max()
+  });
+
+  it('hours exactly at the weekly limit are fully billable', () => {
+    const r = computePay(44, { hourlyRate: 10, weeklyLimit: 44 });
+    expect(r.billable).toBe(44);
+    expect(r.overLimit).toBe(0);
+    expect(r.pay).toBe(440);
+  });
 });
 
 describe('week math (Saturday start, UTC)', () => {
@@ -67,6 +112,17 @@ describe('week math (Saturday start, UTC)', () => {
   });
   it('labels the week range', () => {
     expect(weekLabel('2026-07-04')).toBe('Jul 04 – Jul 10, 2026');
+  });
+  it('crosses a month boundary correctly', () => {
+    // 2026-08-01 is a Saturday → its own week start; 2026-08-03 (Mon) maps back to it
+    expect(weekStartISO('2026-08-03')).toBe('2026-08-01');
+    // a week that starts in July and ends in August
+    expect(weekEndISO('2026-07-25')).toBe('2026-07-31');
+  });
+  it('crosses a year boundary correctly', () => {
+    // 2027-01-01 is a Friday; the prior Saturday is 2026-12-26
+    expect(weekStartISO('2027-01-01')).toBe('2026-12-26');
+    expect(weekEndISO('2026-12-26')).toBe('2027-01-01');
   });
 });
 

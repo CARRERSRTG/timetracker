@@ -33,7 +33,6 @@ export default function Tracker({ profile, user, assignments, sessions }) {
   const [breakList, setBreakList] = useState([]);
   const [activePct, setActivePct] = useState(0);
   const [meter, setMeter] = useState(() => new Array(METER_BARS).fill(false));
-  const [startedFlash, setStartedFlash] = useState(false); // brief "tracking started" toast
 
   const breakEventsRef = useRef([]);
   const sessionIdRef = useRef(null);
@@ -214,8 +213,6 @@ export default function Tracker({ profile, user, assignments, sessions }) {
       // from the main process on tt:start) is the primary cue; this in-app/OS
       // notification covers web + Android too.
       notify({ title: t('notify.startTitle'), body: t('notify.startBody', { project: selected.project?.name || selected.projectName || '' }), tag: 'start-' + selected.id });
-      setStartedFlash(true);
-      setTimeout(() => setStartedFlash(false), 4000);
       if (IS_DESKTOP && window.ttDesktop) {
         try { window.ttDesktop.start({ sessionId: row.id, intervalMin: shotMin }); } catch { /* ignore */ }
       }
@@ -370,16 +367,6 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
   return (
     <>
-      {startedFlash && (
-        <div style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 9999, maxWidth: 320,
-          background: '#12351f', border: '1px solid #1f6b3a', color: '#c9f5d9',
-          borderRadius: 12, padding: '12px 14px', boxShadow: '0 10px 30px rgba(0,0,0,.45)' }}>
-          <div style={{ fontWeight: 700 }}>{t('notify.startTitle')}</div>
-          <div className="small" style={{ opacity: 0.85, marginTop: 2 }}>
-            {t('notify.startBody', { project: selected?.project?.name || selected?.projectName || '' })}
-          </div>
-        </div>
-      )}
       {assignments.length === 0 && (
         <div className="banner info">{t('track.noProjects')}</div>
       )}

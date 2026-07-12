@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { configOk, auth, profiles, settings as settingsApi } from '@shared/lib/supabase.js';
 import { syncAppSettings } from './lib/helpers.js';
 import { initDesktopShots, IS_DESKTOP, desktopGetVersion, desktopOnUpdate, desktopGetUpdateState, desktopCheckUpdate, desktopInstallUpdate } from './lib/desktop.js';
@@ -8,10 +8,13 @@ import { ensureNotifyPermission } from './lib/notify.js';
 import { useT } from './lib/i18n.js';
 import LangToggle from './LangToggle.jsx';
 import AuthScreen from './AuthScreen.jsx';
-import EmployeeDashboard from './employee/EmployeeDashboard.jsx';
-import ManagerDashboard from './manager/ManagerDashboard.jsx';
 import ScreenshotToast from './employee/ScreenshotToast.jsx';
 import NotificationToast from './NotificationToast.jsx';
+
+// Code-split the two dashboards: an employee never downloads the manager bundle
+// (payroll, reports, people, settings) and vice-versa, so first paint is smaller.
+const EmployeeDashboard = lazy(() => import('./employee/EmployeeDashboard.jsx'));
+const ManagerDashboard = lazy(() => import('./manager/ManagerDashboard.jsx'));
 
 export default function App() {
   const [user, setUser] = useState(undefined); // undefined = booting, null = signed out
@@ -144,7 +147,9 @@ function Shell({ profile, appName, onSignOut }) {
         <div className="banner info">{t('shell.viewingAsEmployee')}</div>
       )}
 
-      {showEmployee ? <EmployeeDashboard profile={profile} /> : <ManagerDashboard profile={profile} />}
+      <Suspense fallback={<p className="small muted" style={{ textAlign: 'center', marginTop: 40 }}>{t('shell.loading')}</p>}>
+        {showEmployee ? <EmployeeDashboard profile={profile} /> : <ManagerDashboard profile={profile} />}
+      </Suspense>
 
       <p className="small muted" style={{ textAlign: 'center', marginTop: 20 }}>
         {t('shell.focusNote')}
