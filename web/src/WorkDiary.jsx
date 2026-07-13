@@ -38,7 +38,9 @@ export default function WorkDiary({ shots, sessions = [], onDelete }) {
     const h = s.takenAt ? new Date(s.takenAt).getHours() : 0;
     (byHour[h] = byHour[h] || []).push(s);
   });
-  const hours = Object.keys(byHour).map(Number).sort((a, b) => a - b);
+  // Only show hours that actually have a screenshot (real activity). An hour with
+  // nothing but no-activity markers isn't "worked", so we don't render it at all.
+  const hours = Object.keys(byHour).map(Number).filter((h) => byHour[h].some((s) => s.path)).sort((a, b) => a - b);
   const hourLabel = (h) => {
     const base = new Date(); base.setHours(h, 0, 0, 0);
     const end = new Date(base.getTime() + 3600000);

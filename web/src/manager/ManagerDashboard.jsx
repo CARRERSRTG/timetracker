@@ -16,7 +16,6 @@ import ManagerAssignments from './ManagerAssignments.jsx';
 import ManagerRequests from './ManagerRequests.jsx';
 import ManagerReports from './ManagerReports.jsx';
 import ManagerPeople from './ManagerPeople.jsx';
-import ManagerUsers from './ManagerUsers.jsx';
 import ManagerSettings from './ManagerSettings.jsx';
 import LiveMonitor from './LiveMonitor.jsx';
 import Screenshots from './Screenshots.jsx';
@@ -70,7 +69,6 @@ export default function ManagerDashboard({ profile }) {
     ['projects', t('mgr.tab.projects')],
     ['assign', t('mgr.tab.assign')],
     ['people', t('mgr.tab.people')],
-    ['users', t('mgr.tab.users')],
     ['shots', t('mgr.tab.shots')],
     ['audit', t('mgr.tab.audit')],
     ['config', t('mgr.tab.config')],
@@ -117,7 +115,6 @@ export default function ManagerDashboard({ profile }) {
       {tab === 'audit' && <AuditLog users={users} />}
       {tab === 'requests' && <ManagerRequests profile={profile} requests={requests} projects={pMap} assignments={assignments} />}
       {tab === 'people' && <ManagerPeople users={users} me={profile} />}
-      {tab === 'users' && <ManagerUsers users={users} me={profile} />}
       {tab === 'config' && <ManagerSettings />}
       {tab === 'reports' && <ManagerReports profile={profile} users={users} projects={projects} assignments={assignments} />}
     </>

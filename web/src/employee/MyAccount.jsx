@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { profiles as profilesApi, auth } from '@shared/lib/supabase.js';
 import { APP_SETTINGS, effWorkerType, effTrackMode, effBreaks } from '../lib/helpers.js';
-import ThemeSetting from '../ThemeSetting.jsx';
 
 export default function MyAccount({ me }) {
   const [f, setF] = useState(blank(me));
@@ -32,7 +31,7 @@ export default function MyAccount({ me }) {
       <div className="grid g2">
         <div>
           <label>City</label>
-          <input value={f.city} onChange={(e) => upd('city', e.target.value)} placeholder="San Pedro Sula" />
+          <input value={f.city} onChange={(e) => upd('city', e.target.value)} placeholder="Austin, TX" />
         </div>
         <div>
           <label>Email</label>
@@ -51,7 +50,7 @@ export default function MyAccount({ me }) {
         </div>
         <div>
           <label>Details (account / PayPal / phone)</label>
-          <input value={f.payDetails} onChange={(e) => upd('payDetails', e.target.value)} placeholder="e.g. Banco Atlántida 0123..." />
+          <input value={f.payDetails} onChange={(e) => upd('payDetails', e.target.value)} placeholder="e.g. Chase ••••1234 or PayPal email" />
         </div>
       </div>
       <button style={{ marginTop: 14 }} onClick={save}>Save</button>
@@ -62,8 +61,6 @@ export default function MyAccount({ me }) {
         <span className="chip">{tm === 'activity' ? 'Activity tracking' : 'Clock in / out only'}</span>
         <span className="chip">{br ? 'Lunch & break: on' : 'Lunch & break: off'}</span>
       </div>
-      <div className="hr" />
-      <ThemeSetting />
       <ChangePassword />
     </div>
   );

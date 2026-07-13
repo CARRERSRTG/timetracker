@@ -12,7 +12,7 @@ import { useT } from '../lib/i18n.js';
 // sessions are linked via sessions.payroll_id.
 const tParse = (t) => { if (!t) return 0; const p = String(t).split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); };
 function hhmm(ms) {
-  try { return new Intl.DateTimeFormat('en-GB', { timeZone: APP_SETTINGS.timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms)); }
+  try { return new Intl.DateTimeFormat('en-US', { timeZone: APP_SETTINGS.timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms)); }
   catch { return ''; }
 }
 function fromRange(date, from, to) {
@@ -309,7 +309,7 @@ export default function ManagerReports({ profile, users, projects, assignments }
           </div>
         )}
 
-        {(!b || expanded === gid) && sec > 0 && (
+        {expanded === gid && sec > 0 && (
           <table style={{ marginTop: 6 }}>
             <thead><tr><th>{t('mgr.rep.colDay')}</th><th>{t('mgr.rep.colProject')}</th><th>{t('mgr.rep.colNote')}</th><th className="right">{t('mgr.rep.colDuration')}</th></tr></thead>
             <tbody>
@@ -400,11 +400,27 @@ export default function ManagerReports({ profile, users, projects, assignments }
         if (!groups.live) groups.live = [];
         const keys = Object.keys(groups).sort((a, b) => (a === 'live' ? -1 : b === 'live' ? 1 : 0));
         const emp = uMap[uid];
+        // per-employee summary shown on the collapsed row
+        let empSec = 0, empTotal = 0, hasUnpaid = false;
+        keys.forEach((k) => {
+          const b = k === 'live' ? null : batchMap[k];
+          const { pay, sec } = calcLines(groups[k]);
+          const adjs = b ? b.adjustments || [] : (draftMap[uid]?.adjustments || []);
+          empSec += sec;
+          empTotal += (b ? b.total || 0 : pay) + adjOf(adjs);
+          if (!b ? sec > 0 || adjs.length : !b.paid) hasUnpaid = true;
+        });
         return (
-          <div key={uid} style={{ marginTop: 18 }}>
-            <div style={{ fontWeight: 800, fontSize: 15 }}>{emp ? emp.name : '—'}</div>
+          <details key={uid} style={{ marginTop: 12 }}>
+            <summary className="emp-summary">
+              <span style={{ fontWeight: 800, fontSize: 15 }}>{emp ? emp.name : '—'}</span>
+              <span className="small muted">
+                {(empSec / 3600).toFixed(2)} h · {money(empTotal)}
+                {hasUnpaid && <span className="pill wait" style={{ marginLeft: 8 }}>{t('mgr.rep.open')}</span>}
+              </span>
+            </summary>
             {keys.map((k) => renderGroup(uid, k, groups[k]))}
-          </div>
+          </details>
         );
       })}
 

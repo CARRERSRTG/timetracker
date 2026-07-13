@@ -46,7 +46,7 @@ export default function AuditLog({ users }) {
           {t('mgr.audit.empty')}
         </p>
       ) : days.map((d) => (
-        <details key={d} open style={{ marginTop: 12 }}>
+        <details key={d} style={{ marginTop: 12 }}>
           <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
             {d === 'unknown' ? t('mgr.audit.unknownDate') : fmtDayLong(d)} <span className="chip" style={{ marginLeft: 6 }}>{byDay[d].length}</span>
           </summary>

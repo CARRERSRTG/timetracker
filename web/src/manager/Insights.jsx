@@ -51,6 +51,29 @@ export default function Insights({ users, projects, assignments }) {
   const totalCost = empRows.reduce((n, r) => n + r.cost, 0);
   const avgActivity = empRows.length ? Math.round(empRows.reduce((n, r) => n + r.activity * r.hours, 0) / (totalHours || 1)) : 0;
 
+  // ---- this-vs-last comparisons (week + month) ----
+  // Hours are exact; cost lumps the range through computePay so weekly OT/limit
+  // rules are exact for weeks and a close estimate for months.
+  function hoursAndCost(list) {
+    let sec = 0; const byA = {};
+    list.forEach((s) => { sec += s.durationSeconds || 0; byA[s.assignmentId] = (byA[s.assignmentId] || 0) + (s.durationSeconds || 0); });
+    let cost = 0;
+    Object.entries(byA).forEach(([aid, sc]) => { const a = aMap[aid]; if (a) cost += computePay(sc / 3600, a).pay; });
+    return { hours: sec / 3600, cost };
+  }
+  const lastWkStart = addWeeks(thisWk, -1);
+  const lastWk = hoursAndCost(sessions.filter((s) => weekStartISO(s.date) === lastWkStart));
+  const now = new Date();
+  const monthKey = (d) => String(d).slice(0, 7);
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonth = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth() + 1).padStart(2, '0')}`;
+  const thisMo = hoursAndCost(sessions.filter((s) => monthKey(s.date) === thisMonth));
+  const lastMo = hoursAndCost(sessions.filter((s) => monthKey(s.date) === lastMonth));
+  // month "review" emphasis in the final 3 days of the month
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthEnding = now.getDate() > daysInMonth - 3;
+
   const sorted = empRows.slice().sort((a, b) => {
     const d = sort.dir === 'asc' ? 1 : -1;
     if (sort.key === 'name') return d * a.name.localeCompare(b.name);
@@ -81,6 +104,17 @@ export default function Insights({ users, projects, assignments }) {
         <div className="stat"><div className="n">{money(totalCost)}</div><div className="l">{t('mgr.ins.payWeek')}</div></div>
         <div className="stat"><div className="n">{empRows.length}</div><div className="l">{t('mgr.ins.people')}</div></div>
         <div className="stat"><div className="n">{avgActivity}%</div><div className="l">{t('mgr.ins.avgAct')}</div></div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <h2 style={{ marginTop: 0 }}>{t('mgr.ins.compare')}</h2>
+        <div className="grid g2">
+          <CompareBlock label={t('mgr.ins.vsLastWeek')} now={{ hours: totalHours, cost: totalCost }} prev={lastWk} t={t} />
+          <CompareBlock
+            label={monthEnding ? t('mgr.ins.monthReview') : t('mgr.ins.vsLastMonth')}
+            now={thisMo} prev={lastMo} t={t} highlight={monthEnding}
+          />
+        </div>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
@@ -128,6 +162,35 @@ export default function Insights({ users, projects, assignments }) {
         ))}
       </div>
     </>
+  );
+}
+
+// Side-by-side "now vs previous" block with hours + pay and % deltas.
+function CompareBlock({ label, now, prev, t, highlight }) {
+  return (
+    <div className="box" style={highlight ? { borderColor: 'var(--accent)' } : null}>
+      <div className="small muted" style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      <div className="between" style={{ alignItems: 'baseline' }}>
+        <div><div className="n" style={{ fontSize: 22, fontWeight: 800 }}>{now.hours.toFixed(1)} h</div><div className="l small muted">{t('mgr.ins.hours')}</div></div>
+        <Delta now={now.hours} prev={prev.hours} />
+      </div>
+      <div className="between" style={{ alignItems: 'baseline', marginTop: 8 }}>
+        <div><div className="n" style={{ fontSize: 22, fontWeight: 800 }}>{money(now.cost)}</div><div className="l small muted">{t('mgr.ins.pay')}</div></div>
+        <Delta now={now.cost} prev={prev.cost} />
+      </div>
+      <div className="small muted" style={{ marginTop: 8 }}>{t('mgr.ins.prev')}: {prev.hours.toFixed(1)} h · {money(prev.cost)}</div>
+    </div>
+  );
+}
+
+function Delta({ now, prev }) {
+  if (!prev || prev <= 0) return <span className="pill" style={{ opacity: 0.7 }}>new</span>;
+  const pct = Math.round(((now - prev) / prev) * 100);
+  const up = pct >= 0;
+  return (
+    <span className="small" style={{ color: up ? 'var(--accent2)' : 'var(--danger)', fontWeight: 800 }}>
+      {up ? '▲' : '▼'} {Math.abs(pct)}%
+    </span>
   );
 }
 

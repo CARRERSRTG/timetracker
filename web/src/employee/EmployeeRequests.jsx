@@ -10,7 +10,7 @@ const LABEL = { add: 'Add time', adjust: 'Adjust time', delete: 'Delete time' };
 
 function hhmm(ms) {
   try {
-    return new Intl.DateTimeFormat('en-GB', { timeZone: APP_SETTINGS.timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms));
+    return new Intl.DateTimeFormat('en-US', { timeZone: APP_SETTINGS.timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms));
   } catch { return ''; }
 }
 function tParse(t) { if (!t) return null; const p = t.split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); }

@@ -4,7 +4,7 @@ import { APP_SETTINGS, BROWSER_TZ, TZ_LIST, DAYS, LOCALE, dateISO } from '../lib
 import { useT } from '../lib/i18n.js';
 import ThemeSetting from '../ThemeSetting.jsx';
 
-const CUR_PRESETS = [['$', 'US$'], ['L', 'Lempira'], ['€', 'Euro'], ['MX$', 'Peso MX'], ['Q', 'Quetzal']];
+const CUR_PRESETS = [['$', 'US$'], ['€', 'Euro'], ['£', 'GBP'], ['C$', 'CAD'], ['A$', 'AUD']];
 const BACKUP_TABLES = ['profiles', 'projects', 'assignments', 'sessions', 'payrolls', 'requests', 'audit'];
 
 export default function ManagerSettings() {
@@ -146,13 +146,13 @@ export default function ManagerSettings() {
       <div className="hr" />
       <h3 style={{ color: 'var(--muted)' }}>{t('mgr.set.companyTitle')}</h3>
       <label>{t('mgr.set.companyName')}</label>
-      <input value={co.name} onChange={(e) => upCo('name', e.target.value)} placeholder="El Lechón Ardiente S. de R.L." />
+      <input value={co.name} onChange={(e) => upCo('name', e.target.value)} placeholder="Acme Corp, Inc." />
       <label>{t('mgr.set.address')}</label>
-      <input value={co.address} onChange={(e) => upCo('address', e.target.value)} placeholder="Col. ..., San Pedro Sula, Honduras" />
+      <input value={co.address} onChange={(e) => upCo('address', e.target.value)} placeholder="123 Main St, Suite 100, Austin, TX 78701" />
       <div className="grid g3">
-        <div><label>{t('mgr.set.taxId')}</label><input value={co.taxId} onChange={(e) => upCo('taxId', e.target.value)} placeholder="0501-..." /></div>
-        <div><label>{t('mgr.set.phone')}</label><input value={co.phone} onChange={(e) => upCo('phone', e.target.value)} placeholder="+504 ..." /></div>
-        <div><label>{t('mgr.set.email')}</label><input value={co.email} onChange={(e) => upCo('email', e.target.value)} placeholder="pay@company.com" /></div>
+        <div><label>{t('mgr.set.taxId')}</label><input value={co.taxId} onChange={(e) => upCo('taxId', e.target.value)} placeholder="EIN 12-3456789" /></div>
+        <div><label>{t('mgr.set.phone')}</label><input value={co.phone} onChange={(e) => upCo('phone', e.target.value)} placeholder="+1 (555) 123-4567" /></div>
+        <div><label>{t('mgr.set.email')}</label><input value={co.email} onChange={(e) => upCo('email', e.target.value)} placeholder="payroll@company.com" /></div>
       </div>
 
       <div className="hr" />

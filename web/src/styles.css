@@ -166,3 +166,11 @@ html,body{overflow-x:hidden;-webkit-text-size-adjust:100%}
   background-image:linear-gradient(90deg,var(--panel2),var(--line),var(--panel2));
   background-size:200% 100%;animation:shimmer 1.2s infinite}
 @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+
+/* Collapsible per-employee header in Reports & Pay */
+.emp-summary{cursor:pointer;list-style:none;display:flex;align-items:center;
+  justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel2)}
+.emp-summary::-webkit-details-marker{display:none}
+.emp-summary::before{content:"▸";margin-right:8px;color:var(--muted);font-size:12px}
+details[open]>.emp-summary::before{content:"▾"}

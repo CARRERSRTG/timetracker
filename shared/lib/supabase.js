@@ -88,6 +88,15 @@ export function authErrorMessage(err) {
   return AUTH_ERROR_MAP[msg] || msg;
 }
 
+// Where Supabase should send confirmation / recovery links. Prefer the running
+// app's own origin (the deployed Vercel URL in production), falling back to the
+// configured public URL, then localhost only as a last resort in dev.
+function emailRedirect() {
+  try { if (typeof window !== 'undefined' && window.location?.origin && !/^file:/.test(window.location.origin)) return window.location.origin; }
+  catch { /* ignore */ }
+  return import.meta.env?.VITE_PUBLIC_URL || undefined;
+}
+
 export const auth = {
   // name is stored in auth user_metadata; the on_auth_user_created trigger
   // copies it into profiles.name and decides admin-vs-employee.
@@ -95,7 +104,9 @@ export const auth = {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { name: name.trim() } },
+      // Send the confirmation link back to THIS deployed app, not whatever the
+      // Supabase "Site URL" happens to be (which defaulted to localhost).
+      options: { data: { name: name.trim() }, emailRedirectTo: emailRedirect() },
     });
     if (error) throw error;
     return data;
@@ -142,7 +153,7 @@ export const auth = {
     const { data, error } = await tmp.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { name: (name || '').trim() } },
+      options: { data: { name: (name || '').trim() }, emailRedirectTo: emailRedirect() },
     });
     if (error) throw error;
     return data;
