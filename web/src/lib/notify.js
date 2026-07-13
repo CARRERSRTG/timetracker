@@ -14,10 +14,20 @@ function capNative() {
   catch { return null; }
 }
 
+// The Electron desktop app draws its own polished floating toasts (screenshot
+// captured, tracking started, etc.) from the main process. Firing an HTML5
+// Notification there too produces a redundant native Windows toast on top of the
+// nice one, so on desktop we skip the OS notification and rely on the in-app toast.
+function isDesktop() {
+  try { return !!(typeof window !== 'undefined' && window.ttDesktop && window.ttDesktop.isDesktop); }
+  catch { return false; }
+}
+
 export function ensureNotifyPermission() {
   try {
     const c = capNative();
     if (c) { c.Plugins?.LocalNotifications?.requestPermissions?.().catch(() => {}); return; }
+    if (isDesktop()) return; // desktop uses its own toasts — no OS permission needed
     if (typeof Notification === 'undefined') return;
     if (Notification.permission === 'default') Notification.requestPermission().catch(() => {});
   } catch { /* ignore */ }
@@ -36,6 +46,7 @@ export function notify({ title, body, tag }) {
       }).catch(() => {});
       return;
     }
+    if (isDesktop()) return; // desktop draws its own floating toasts (see main.js)
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(title, { body, tag });
     }

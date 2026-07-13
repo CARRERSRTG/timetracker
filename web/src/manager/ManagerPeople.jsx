@@ -166,6 +166,13 @@ function DeletedUsers({ activeCount }) {
     catch (e) { alert(t('mgr.usr.restoreFail', { e: e.message || e })); }
     finally { setBusy(false); }
   }
+  async function purge(u) {
+    if (!confirm(t('mgr.usr.purgeConfirm', { name: u.name }))) return;
+    setBusy(true);
+    try { await auth.deleteUserFully(u.id); auditApi.log('Employee deleted permanently', u.name); await load(); }
+    catch (e) { alert(t('mgr.usr.purgeFail', { e: e.message || e })); }
+    finally { setBusy(false); }
+  }
   if (!deleted.length) return null;
   return (
     <div className="card">
@@ -180,7 +187,10 @@ function DeletedUsers({ activeCount }) {
                 <td>{u.name}</td>
                 <td className="small muted">{u.email || '—'}</td>
                 <td className="small muted nowrap">{u.deletedAt ? new Date(u.deletedAt).toLocaleDateString() : '—'}</td>
-                <td><button className="btn-ok btn-sm" disabled={busy} onClick={() => restore(u)}>{t('common.restore')}</button></td>
+                <td className="nowrap">
+                  <button className="btn-ok btn-sm" disabled={busy} onClick={() => restore(u)}>{t('common.restore')}</button>
+                  <button className="btn-danger btn-sm" style={{ marginLeft: 6 }} disabled={busy} onClick={() => purge(u)}>{t('mgr.usr.purgeBtn')}</button>
+                </td>
               </tr>
             ))}
           </tbody>
