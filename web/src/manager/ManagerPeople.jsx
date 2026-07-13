@@ -48,10 +48,10 @@ export default function ManagerPeople({ users, me }) {
     if (u.role === 'admin' && adminCount <= 1) { alert(t('mgr.ppl.noDeleteOnlyMgr')); return; }
     if (!confirm(t('mgr.ppl.deleteConfirm', { name: u.name }))) return;
     try {
-      // Full delete: removes their login + all data and frees the email to be
-      // re-invited (done server-side by the delete-user Edge Function).
-      await auth.deleteUserFully(u.id);
-      auditApi.log('Employee deleted (permanent)', u.name);
+      // Soft delete: hide from the active list but KEEP their login and all
+      // payment/time history. Restorable from "Removed accounts" below.
+      await profilesApi.softDelete(u.id);
+      auditApi.log('Employee removed', u.name);
     } catch (e) {
       alert(t('mgr.ppl.deleteFail', { e: e.message || e }));
     }
