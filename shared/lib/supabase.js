@@ -126,6 +126,22 @@ export const auth = {
     if (error) throw error;
   },
 
+  // Permanently delete a user (managers only). Calls the `delete-user` Edge
+  // Function, which runs with admin rights server-side: it removes the auth login
+  // — cascading to profile/assignments/sessions/payrolls/screenshots — and frees
+  // the email so it can be invited again. Throws with the server's message on
+  // failure (not a manager, last manager, etc.).
+  async deleteUserFully(userId) {
+    const { data, error } = await supabase.functions.invoke('delete-user', { body: { userId } });
+    if (error) {
+      let msg = error.message || 'Delete failed';
+      try { const body = await error.context.json(); if (body?.error) msg = body.error; } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  },
+
   // Revoke every session for the current user (all browsers + desktop installs),
   // not just this one. Supabase's 'global' scope invalidates all refresh tokens.
   async signOutEverywhere() {

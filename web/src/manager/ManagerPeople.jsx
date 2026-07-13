@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   profiles as profilesApi,
-  assignments as assignmentsApi,
   audit as auditApi,
   auth,
 } from '@shared/lib/supabase.js';
@@ -49,10 +48,10 @@ export default function ManagerPeople({ users, me }) {
     if (u.role === 'admin' && adminCount <= 1) { alert(t('mgr.ppl.noDeleteOnlyMgr')); return; }
     if (!confirm(t('mgr.ppl.deleteConfirm', { name: u.name }))) return;
     try {
-      const asn = await assignmentsApi.listByEmployee(u.id);
-      await Promise.all(asn.map((a) => assignmentsApi.remove(a.id)));
-      await profilesApi.softDelete(u.id);
-      auditApi.log('Employee removed', u.name);
+      // Full delete: removes their login + all data and frees the email to be
+      // re-invited (done server-side by the delete-user Edge Function).
+      await auth.deleteUserFully(u.id);
+      auditApi.log('Employee deleted (permanent)', u.name);
     } catch (e) {
       alert(t('mgr.ppl.deleteFail', { e: e.message || e }));
     }
