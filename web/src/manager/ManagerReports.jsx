@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sessions as sessionsApi, payrolls as payrollsApi, audit as auditApi } from '@shared/lib/supabase.js';
 import {
-  APP_SETTINGS, computePay, money, fmtClock, fmtHM, fmtDT, dateISO, weekStartISO, breaksText,
+  APP_SETTINGS, LOCALE, computePay, money, fmtClock, fmtHM, fmtDT, dateISO, weekStartISO, breaksText,
   periodEndISO, addPeriod, thisPeriodStart, periodLabel, projectWeekStart, weekIsFinished,
 } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
@@ -32,6 +32,7 @@ export default function ManagerReports({ profile, users, projects, assignments }
   const [batches, setBatches] = useState([]);
   const [expanded, setExpanded] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState('');
   const [receipt, setReceipt] = useState(null);
   const adjTypes = APP_SETTINGS.adjustmentTypes || ['Bonus', 'Advance', 'Deduction'];
   const [adjType, setAdjType] = useState(adjTypes[0]);
@@ -213,6 +214,55 @@ export default function ManagerReports({ profile, users, projects, assignments }
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
   }
 
+  // Structured data for the styled Excel / PDF exporters (built from the same
+  // per-employee grouping used on screen).
+  function buildExportData() {
+    const employees = empIds.map((uid) => {
+      const groups = byEmp[uid] || {};
+      const allSess = Object.values(groups).flat();
+      const { lines, pay, sec } = calcLines(allSess);
+      let adjustments = [...(draftMap[uid]?.adjustments || [])];
+      Object.keys(groups).forEach((k) => { const b = batchMap[k]; if (b) adjustments = adjustments.concat(b.adjustments || []); });
+      const emp = uMap[uid];
+      const hasUnpaid = Object.keys(groups).some((k) => { const b = batchMap[k]; return b ? !b.paid : (groups[k] || []).length > 0; });
+      const expLines = lines.map((l) => {
+        const proj = l.a && pMap[l.a.projectId] ? pMap[l.a.projectId] : { name: '(deleted)', location: '' };
+        return { project: proj.name, location: proj.location || '', hours: l.g.sec / 3600, reg: l.calc.reg, ot: l.calc.ot, pay: l.calc.pay };
+      });
+      const adjTotal = adjOf(adjustments);
+      return {
+        name: emp ? emp.name : '—',
+        email: emp?.email || '',
+        statusLabel: hasUnpaid ? t('mgr.rep.open') : t('mgr.rep.paid'),
+        lines: expLines,
+        adjustments: adjustments.map((a) => ({ label: a.label, amount: Number(a.amount) || 0 })),
+        totalHours: sec / 3600,
+        totalPay: pay + adjTotal,
+      };
+    });
+    return {
+      periodLabel: periodLabel(week, payPeriod),
+      generatedAt: new Date().toLocaleDateString(LOCALE),
+      currencySymbol: APP_SETTINGS.currency || '$',
+      company: { name: APP_SETTINGS.companyName, address: APP_SETTINGS.companyAddress, taxId: APP_SETTINGS.companyTaxId, phone: APP_SETTINGS.companyPhone, email: APP_SETTINGS.companyEmail },
+      employees,
+      grandHours: employees.reduce((n, e) => n + e.totalHours, 0),
+      grandPay: employees.reduce((n, e) => n + e.totalPay, 0),
+    };
+  }
+  async function doExcel() {
+    setExporting('xlsx');
+    try { const { exportExcel } = await import('../lib/exportTimesheet.js'); await exportExcel(buildExportData(), 'timesheet_' + week + '.xlsx'); }
+    catch (e) { alert(t('mgr.rep.exportFail', { e: e.message || e })); }
+    finally { setExporting(''); }
+  }
+  async function doPDF() {
+    setExporting('pdf');
+    try { const { exportPDF } = await import('../lib/exportTimesheet.js'); exportPDF(buildExportData()); }
+    catch (e) { alert(t('mgr.rep.exportFail', { e: e.message || e })); }
+    finally { setExporting(''); }
+  }
+
   function openReceipt(uid, b, sess) {
     const emp = uMap[uid];
     const { lines, pay } = calcLines(sess);
@@ -365,6 +415,8 @@ export default function ManagerReports({ profile, users, projects, assignments }
         <h2 style={{ margin: 0 }}>{t('mgr.tab.reports')}</h2>
         <div className="row" style={{ alignItems: 'center' }}>
           <button className="btn-ghost btn-sm" onClick={exportCSV} disabled={empIds.length === 0}>{t('mgr.rep.csv')}</button>
+          <button className="btn-ghost btn-sm" onClick={doExcel} disabled={empIds.length === 0 || !!exporting}>{exporting === 'xlsx' ? '…' : t('mgr.rep.excel')}</button>
+          <button className="btn-ghost btn-sm" onClick={doPDF} disabled={empIds.length === 0 || !!exporting}>{exporting === 'pdf' ? '…' : t('mgr.rep.pdf')}</button>
           <button className="btn-ghost btn-sm" onClick={() => setWeek(addPeriod(week, -1, payPeriod))}>{t('mgr.rep.prev')}</button>
           <span className="small nowrap">{periodLabel(week, payPeriod)}</span>
           {weekIsFinished(week, payPeriod) && <span className="pill wait">{t('emp.week.reviewBadge')}</span>}
