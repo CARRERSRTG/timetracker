@@ -443,8 +443,23 @@ export const settings = {
   async update(patch) {
     const current = await this.get();
     const merged = { ...current, ...patch };
-    const { error } = await supabase.from('settings').update({ data: merged }).eq('id', 'app');
+    // Make sure the JWT is live before writing: settings writes require
+    // is_admin(), which relies on auth.uid(). With a stale/absent token
+    // auth.uid() comes back null, RLS matches zero rows, and Postgres returns
+    // NO error — so the save silently no-ops. We select() the affected rows to
+    // detect that (empty = blocked), refresh the token, and retry once.
+    await auth.ensureSession().catch(() => {});
+    const write = () => supabase.from('settings').update({ data: merged }).eq('id', 'app').select('id');
+    let { data, error } = await write();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      await auth.forceRefresh().catch(() => {});
+      ({ data, error } = await write());
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Settings were not saved — your account may not have manager permissions, or your login expired. Sign out and back in, then try again.');
+      }
+    }
   },
 };
 

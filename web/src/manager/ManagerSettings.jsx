@@ -30,6 +30,7 @@ export default function ManagerSettings() {
     taxId: APP_SETTINGS.companyTaxId || '', phone: APP_SETTINGS.companyPhone || '', email: APP_SETTINGS.companyEmail || '',
   });
   const [saved, setSaved] = useState(false);
+  const [saveErr, setSaveErr] = useState('');
   const [now, setNow] = useState(Date.now());
   const [dataMsg, setDataMsg] = useState('');
   const [working, setWorking] = useState(false);
@@ -41,7 +42,7 @@ export default function ManagerSettings() {
   async function save() {
     const list = methods.split(',').map((s) => s.trim()).filter(Boolean);
     const alist = adjTypes.split(',').map((s) => s.trim()).filter(Boolean);
-    await settingsApi.update({
+    const payload = {
       appName: appName.trim() || 'TimeTracker',
       locations: locations.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), weekStartDay: l.weekStartDay === '' ? null : Number(l.weekStartDay) })),
       currency: cur.trim() || '$',
@@ -59,9 +60,16 @@ export default function ManagerSettings() {
       defaultBreaksEnabled: breaks === 'yes',
       companyName: co.name.trim(), companyAddress: co.address.trim(), companyTaxId: co.taxId.trim(),
       companyPhone: co.phone.trim(), companyEmail: co.email.trim(),
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    };
+    try {
+      await settingsApi.update(payload);
+      setSaveErr('');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaved(false);
+      setSaveErr(e.message || String(e));
+    }
   }
 
   async function backup() {
@@ -119,6 +127,7 @@ export default function ManagerSettings() {
     <div className="card" style={{ maxWidth: 600 }}>
       <h2>{t('mgr.tab.config')}</h2>
       {saved && <div className="banner ok">{t('mgr.set.saved')}</div>}
+      {saveErr && <div className="banner err">{saveErr}</div>}
 
       <label>{t('mgr.set.appName')}</label>
       <input value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="TimeTracker" />
