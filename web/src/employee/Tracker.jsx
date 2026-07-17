@@ -159,6 +159,21 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
   async function start() {
     if (!selected) return;
+    // One active session per user. If a live session already exists (e.g. left
+    // running on another device or browser tab), force it closed before a new
+    // one can begin — otherwise the same user double-counts time. The last 10s
+    // tick already persisted duration/end_ms, so closing just flips is_live.
+    try {
+      await authApi.ensureSession().catch(() => {});
+      const live = await sessionsApi.listLive(profile.id);
+      const others = live.filter((s) => s.id !== sessionIdRef.current);
+      if (others.length) {
+        if (!window.confirm(t('track.liveConflict'))) return;
+        for (const s of others) {
+          await sessionsApi.update(s.id, { isLive: false, endMs: s.endMs || s.startMs || Date.now() }).catch(() => {});
+        }
+      }
+    } catch { /* if the live-check fails (offline, etc.) fall through and start normally */ }
     lunchRef.current = 0; brkRef.current = 0; onBreakRef.current = null; breakEventsRef.current = [];
     keystrokesRef.current = 0; clicksRef.current = 0; activeSecondsRef.current = 0;
     secHadEventRef.current = false; lastActTotalRef.current = 0;
