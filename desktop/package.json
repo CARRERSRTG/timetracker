@@ -1,7 +1,7 @@
 {
   "name": "desktop",
   "private": true,
-  "version": "0.0.35",
+  "version": "0.0.36",
   "description": "Time Tracker desktop app (Electron, Windows)",
   "author": "RDZ Tile Group",
   "main": "main.js",
@@ -38,7 +38,7 @@
       "icon": "build/icon.ico"
     },
     "publish": [
-      { "provider": "github", "owner": "CARRERSRTG", "repo": "timetracker" }
+      { "provider": "github", "owner": "CARRERSRTG", "repo": "timetracker", "releaseType": "release" }
     ],
     "nsis": {
       "oneClick": false,

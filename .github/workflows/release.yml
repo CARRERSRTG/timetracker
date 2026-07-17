@@ -2,6 +2,11 @@ name: Release desktop app
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'web/src/lib/version.js'
+      - 'desktop/package.json'
 
 permissions:
   contents: write
