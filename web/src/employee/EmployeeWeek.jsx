@@ -5,13 +5,17 @@ import {
   fmtDayLong, dateISO, weekIsFinished,
 } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
+import { useSettings } from '../lib/SettingsContext.jsx';
 
 // NOTE: schema stores the payroll amount in the `total` column (the original
 // Firebase app used `amount`). We read `total` here; the manager payroll step
 // writes `total`.
 export default function EmployeeWeek({ profile, assignments, sessions }) {
   const t = useT();
+  const settings = useSettings();
   const [week, setWeek] = useState(thisWeekStart());
+  // Re-anchor to the current week when the pay-week start / timezone changes live.
+  useEffect(() => { setWeek(thisWeekStart()); }, [settings.weekStartDay, settings.timeZone]);
   const [batches, setBatches] = useState([]);
   const [openDays, setOpenDays] = useState(() => new Set([dateISO(new Date())])); // today expanded
   const toggleDay = (d) => setOpenDays((prev) => { const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n; });

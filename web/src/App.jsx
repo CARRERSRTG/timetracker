@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { configOk, auth, profiles, settings as settingsApi } from '@shared/lib/supabase.js';
-import { syncAppSettings } from './lib/helpers.js';
+import { syncAppSettings, APP_SETTINGS } from './lib/helpers.js';
+import { SettingsProvider } from './lib/SettingsContext.jsx';
 import { initDesktopShots, IS_DESKTOP, desktopGetVersion, desktopOnUpdate, desktopGetUpdateState, desktopCheckUpdate, desktopInstallUpdate } from './lib/desktop.js';
 import { initOfflineQueue, subscribeOfflineStatus } from './lib/offlineQueue.js';
 import { APP_VERSION } from './lib/version.js';
@@ -21,6 +22,8 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [profileError, setProfileError] = useState('');
   const [appName, setAppName] = useState('TimeTracker');
+  const [settings, setSettings] = useState(APP_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const profileRef = useRef(null);
   profileRef.current = profile;
 
@@ -44,7 +47,7 @@ export default function App() {
   // keep the global helper settings (currency, week start, timezone) in sync
   useEffect(() => {
     if (!user) return;
-    return settingsApi.subscribe((s) => { syncAppSettings(s); setAppName(s.appName || 'TimeTracker'); });
+    return settingsApi.subscribe((s) => { syncAppSettings(s); setSettings({ ...APP_SETTINGS }); setAppName(s.appName || 'TimeTracker'); setSettingsLoaded(true); });
   }, [user]);
 
   useEffect(() => {
@@ -62,8 +65,13 @@ export default function App() {
   if (user === undefined) return <BootScreen label="Loading…" />;
   if (!user) return <AuthScreen />;
   if (!profile) return <BootScreen label={profileError || 'Setting up your account…'} onSignOut={() => auth.signOut()} />;
+  if (!settingsLoaded) return <BootScreen label="Loading…" onSignOut={() => auth.signOut()} />;
 
-  return <Shell profile={profile} appName={appName} onSignOut={() => auth.signOut()} />;
+  return (
+    <SettingsProvider value={settings}>
+      <Shell profile={profile} appName={appName} onSignOut={() => auth.signOut()} />
+    </SettingsProvider>
+  );
 }
 
 function BootScreen({ label, onSignOut }) {

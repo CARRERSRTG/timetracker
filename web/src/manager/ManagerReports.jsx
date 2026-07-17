@@ -5,6 +5,7 @@ import {
   periodEndISO, addPeriod, thisPeriodStart, periodLabel, projectWeekStart, weekIsFinished,
 } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
+import { useSettings } from '../lib/SettingsContext.jsx';
 
 // Payroll adapted to our schema: batches live in `payrolls`, the amount is the
 // `total` column (not `amount`), drafts are payroll rows with draft=true holding
@@ -26,8 +27,11 @@ const paidAtMs = (b) => (b && b.paidAt ? new Date(b.paidAt).getTime() : 0);
 
 export default function ManagerReports({ profile, users, projects, assignments }) {
   const t = useT();
-  const payPeriod = APP_SETTINGS.payPeriod || 'weekly';
+  const settings = useSettings();
+  const payPeriod = settings.payPeriod || 'weekly';
   const [week, setWeek] = useState(thisPeriodStart(payPeriod));
+  // Re-anchor to the current period when pay-period / week start / timezone changes live.
+  useEffect(() => { setWeek(thisPeriodStart(payPeriod)); }, [payPeriod, settings.weekStartDay, settings.timeZone]);
   const [sessions, setSessions] = useState([]);
   const [batches, setBatches] = useState([]);
   const [expanded, setExpanded] = useState(null);
