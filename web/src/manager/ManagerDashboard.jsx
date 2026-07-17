@@ -8,6 +8,7 @@ import {
 } from '@shared/lib/supabase.js';
 import { notify } from '../lib/notify.js';
 import { useT } from '../lib/i18n.js';
+import TabBar from '../components/TabBar.jsx';
 import Tracker from '../employee/Tracker.jsx';
 import EmployeeWeek from '../employee/EmployeeWeek.jsx';
 import MyAccount from '../employee/MyAccount.jsx';
@@ -62,19 +63,19 @@ export default function ManagerDashboard({ profile }) {
   const pending = requests.filter((r) => r.status === 'pending').length;
 
   const TABS = [
-    ['insights', t('mgr.tab.insights')],
-    ['live', t('mgr.tab.live')],
-    ['reports', t('mgr.tab.reports')],
-    ['requests', t('mgr.tab.requests')],
-    ['projects', t('mgr.tab.projects')],
-    ['assign', t('mgr.tab.assign')],
-    ['people', t('mgr.tab.people')],
-    ['shots', t('mgr.tab.shots')],
-    ['audit', t('mgr.tab.audit')],
-    ['config', t('mgr.tab.config')],
-    ['track', t('tab.track')],
-    ['myweek', t('tab.week')],
-    ['account', t('tab.account')],
+    { id: 'insights', label: t('mgr.tab.insights') },
+    { id: 'live', label: t('mgr.tab.live') },
+    { id: 'reports', label: t('mgr.tab.reports') },
+    { id: 'requests', label: t('mgr.tab.requests'), badge: pending },
+    { id: 'projects', label: t('mgr.tab.projects') },
+    { id: 'assign', label: t('mgr.tab.assign') },
+    { id: 'people', label: t('mgr.tab.people') },
+    { id: 'shots', label: t('mgr.tab.shots') },
+    { id: 'audit', label: t('mgr.tab.audit') },
+    { id: 'config', label: t('mgr.tab.config') },
+    { id: 'track', label: t('tab.track') },
+    { id: 'myweek', label: t('tab.week') },
+    { id: 'account', label: t('tab.account') },
   ];
 
   const noProjects = projects.filter((p) => !p.archived).length === 0;
@@ -82,14 +83,12 @@ export default function ManagerDashboard({ profile }) {
 
   return (
     <>
-      <div className="tabs">
-        {TABS.map(([id, label]) => (
-          <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
-            {label}
-            {id === 'requests' && pending > 0 && <span className="badge">{pending}</span>}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={TABS}
+        active={tab}
+        onChange={setTab}
+        primaryIds={['insights', 'live', 'requests', 'track', 'myweek']}
+      />
 
       {(noProjects || noEmployees) && tab === 'insights' && (
         <div className="banner info">

@@ -10,6 +10,7 @@ import {
 import { notify } from '../lib/notify.js';
 import { money, weekLabel } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
+import TabBar from '../components/TabBar.jsx';
 import Tracker from './Tracker.jsx';
 import EmployeeWeek from './EmployeeWeek.jsx';
 import EmployeeRequests from './EmployeeRequests.jsx';
@@ -85,17 +86,17 @@ export default function EmployeeDashboard({ profile }) {
 
   if (me && me.active === false) return <DeactivatedNotice />;
 
+  const TABS = [
+    { id: 'track', label: t('tab.track') },
+    { id: 'week', label: t('tab.week') },
+    { id: 'req', label: t('tab.requests'), badge: pendingReq },
+    { id: 'shots', label: t('tab.shots') },
+    { id: 'account', label: t('tab.account') },
+  ];
+
   return (
     <>
-      <div className="tabs">
-        <button className={tab === 'track' ? 'active' : ''} onClick={() => setTab('track')}>{t('tab.track')}</button>
-        <button className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')}>{t('tab.week')}</button>
-        <button className={tab === 'req' ? 'active' : ''} onClick={() => setTab('req')}>
-          {t('tab.requests')}{pendingReq > 0 && <span className="badge">{pendingReq}</span>}
-        </button>
-        <button className={tab === 'shots' ? 'active' : ''} onClick={() => setTab('shots')}>{t('tab.shots')}</button>
-        <button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>{t('tab.account')}</button>
-      </div>
+      <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
       {/* keep the Tracker mounted so a running timer survives tab switches */}
       <div style={{ display: tab === 'track' ? 'block' : 'none' }}>
