@@ -435,3 +435,40 @@ create policy "sessions update" on public.sessions for update to authenticated
 --  diary can show an empty slot for that segment.
 -- =====================================================================
 alter table public.screenshots add column if not exists no_activity boolean default false;
+
+-- =====================================================================
+--  SECURITY FIX — self-service privilege escalation via "profiles update".
+--  That policy's USING clause is `is_admin() OR auth.uid() = id` with no
+--  WITH CHECK, so Postgres reuses USING to validate the new row — and for a
+--  self-update `auth.uid() = id` still holds no matter what changed. Any
+--  signed-in employee could set their own role/active straight from the
+--  client (e.g. `profiles.update({role:'admin',active:true}).eq('id', me)`)
+--  and become an admin. A WITH CHECK can't compare against the OLD row by
+--  itself, so this is enforced with a trigger instead: non-admins may still
+--  update their own profile (name, pay info, etc.) but role/active are
+--  pinned to their current values unless the actor is already an admin.
+-- =====================================================================
+create or replace function public.guard_profile_privilege_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin()
+     and (new.role is distinct from old.role or new.active is distinct from old.active) then
+    raise exception 'Only an admin can change role or active status';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_profile_privilege_columns on public.profiles;
+create trigger guard_profile_privilege_columns
+  before update on public.profiles
+  for each row execute function public.guard_profile_privilege_columns();
+
+drop policy if exists "profiles update" on public.profiles;
+create policy "profiles update" on public.profiles for update to authenticated
+  using (public.is_admin() or auth.uid() = id)
+  with check (public.is_admin() or auth.uid() = id);

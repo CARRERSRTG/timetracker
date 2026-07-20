@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sessions as sessionsApi, screenshots as screenshotsApi, auth as authApi } from '@shared/lib/supabase.js';
 import {
-  APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, thisWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
+  APP_SETTINGS, fmtClock, fmtHrs, fmtTime, money, dateISO, weekStartISO, projectWeekStart, timeAgo, effWorkerType, effTrackMode, effBreaks,
 } from '../lib/helpers.js';
 import { IS_DESKTOP, DESKTOP_SHOT_MIN, desktopGetActivity, desktopGetContext, desktopOnPower, subscribeShotsChanged } from '../lib/desktop.js';
 import { queueSession } from '../lib/offlineQueue.js';
@@ -63,13 +63,18 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 
   const selected = assignments.find((a) => a.id === assignmentId);
   const shotMin = Number(APP_SETTINGS.screenshotIntervalMin) || DESKTOP_SHOT_MIN;
-  const wStart = thisWeekStart();
+  // Use this project's own week-start day (falls back to its location, then the
+  // global default) — must match how ManagerReports/payroll bucket the same
+  // hours, or the weekly-limit warning here can disagree with what payroll
+  // actually flags as over-limit.
+  const wsd = selected ? projectWeekStart(selected.project) : undefined;
+  const wStart = weekStartISO(new Date(), wsd);
   const weekSecThisProj = useMemo(() => {
     if (!selected) return 0;
     return sessions
-      .filter((s) => weekStartISO(s.date) === wStart && s.assignmentId === selected.id)
+      .filter((s) => weekStartISO(s.date, wsd) === wStart && s.assignmentId === selected.id)
       .reduce((n, s) => n + (s.durationSeconds || 0), 0);
-  }, [sessions, selected, wStart]);
+  }, [sessions, selected, wStart, wsd]);
   const wLimitSec = selected && selected.weeklyLimit !== '' && selected.weeklyLimit != null
     ? Number(selected.weeklyLimit) * 3600 : Infinity;
   const overLimit = weekSecThisProj + worked > wLimitSec;
@@ -506,11 +511,12 @@ export default function Tracker({ profile, user, assignments, sessions }) {
 // current without double-counting.
 function TrackedTotals({ sessions, selected }) {
   const today = dateISO(new Date());
-  const wStart = thisWeekStart();
+  const wsd = selected ? projectWeekStart(selected.project) : undefined;
+  const wStart = weekStartISO(new Date(), wsd);
   const aid = selected?.id;
   const sumIf = (pred) => sessions.filter(pred).reduce((n, s) => n + (s.durationSeconds || 0), 0);
   const todaySec = sumIf((s) => s.date === today && (!aid || s.assignmentId === aid));
-  const weekSec = sumIf((s) => weekStartISO(s.date) === wStart && (!aid || s.assignmentId === aid));
+  const weekSec = sumIf((s) => weekStartISO(s.date, wsd) === wStart && (!aid || s.assignmentId === aid));
   const limit = selected && selected.weeklyLimit !== '' && selected.weeklyLimit != null ? Number(selected.weeklyLimit) : null;
   const weekday = new Date().toLocaleDateString(undefined, { weekday: 'short' });
   return (

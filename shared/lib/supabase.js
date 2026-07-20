@@ -399,6 +399,19 @@ export const requests = {
   subscribeAll(callback) {
     return subscribeList('requests', {}, callback);
   },
+  // Atomically approve/reject only if the request is still pending — the
+  // update is conditioned on status='pending' server-side, so a double-click
+  // or two managers racing on the same request can only ever have one caller
+  // win. Returns the updated row, or null if someone else already resolved
+  // it (caller should skip applying the request a second time).
+  async updateIfPending(id, patch) {
+    const { data, error } = await supabase.from('requests')
+      .update(toSnakeRow(patch))
+      .eq('id', id).eq('status', 'pending')
+      .select().maybeSingle();
+    if (error) throw error;
+    return data ? rowToCamel(data) : null;
+  },
 };
 
 // ---------------------------------------------------------------------

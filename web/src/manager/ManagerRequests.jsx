@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { sessions as sessionsApi, requests as requestsApi, audit as auditApi } from '@shared/lib/supabase.js';
 import { fmtClock, weekStartISO } from '../lib/helpers.js';
 import { useT } from '../lib/i18n.js';
@@ -25,48 +26,85 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
   const pending = requests.filter((r) => r.status === 'pending').sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
   const history = requests.filter((r) => r.status !== 'pending').sort((a, b) => new Date(b.resolvedAt || 0) - new Date(a.resolvedAt || 0)).slice(0, 30);
 
+  // Tracks requests currently being accepted/rejected so a double-click (or the
+  // network round-trip) can't fire the same mutation twice from this tab.
+  const [busyIds, setBusyIds] = useState(() => new Set());
+  const busyRef = useRef(busyIds);
+  busyRef.current = busyIds;
+  const setBusy = (id, on) => setBusyIds((prev) => {
+    const n = new Set(prev);
+    on ? n.add(id) : n.delete(id);
+    return n;
+  });
+
   async function accept(r) {
-    const p = r.payload || {};
+    if (busyRef.current.has(r.id)) return;
+    setBusy(r.id, true);
     try {
-      if (r.type === 'add') {
-        let d;
-        if (p.fromTime && p.toTime) d = fromRange(p.date, p.fromTime, p.toTime);
-        else { const dur = Math.round((p.hours || 0) * 3600); const s = Date.parse(p.date + 'T12:00:00Z'); d = { durationSeconds: dur, startMs: s, endMs: s + dur * 1000 }; }
-        await sessionsApi.insert({
-          employeeUid: r.employeeUid,
-          employeeName: p.employeeName,
-          projectId: p.projectId,
-          assignmentId: p.assignmentId,
-          memo: p.reason ? '[Manual] ' + p.reason : '[Time added]',
-          weekOf: weekStartISO(p.date),
-          date: p.date,
-          startMs: d.startMs,
-          endMs: d.endMs,
-          durationSeconds: d.durationSeconds,
-          keystrokes: 0, clicks: 0, activeSeconds: 0,
-          manual: true, source: 'manual', isLive: false,
-        });
-      } else if (r.type === 'adjust') {
-        if (p.fromTime && p.toTime) {
-          const d = fromRange(p.date, p.fromTime, p.toTime);
-          await sessionsApi.update(p.sessionId, { date: p.date, weekOf: weekStartISO(p.date), startMs: d.startMs, endMs: d.endMs, durationSeconds: d.durationSeconds, source: 'adjusted' });
-        } else {
-          await sessionsApi.update(p.sessionId, { durationSeconds: Math.round((p.hours || 0) * 3600), source: 'adjusted' });
+      // Claim the request first, conditioned on it still being pending — this
+      // is the only step that needs to be atomic against a second click or a
+      // second manager clicking Accept at the same moment. If someone else
+      // already resolved it, `claimed` comes back null and we skip applying
+      // it again (no duplicate session).
+      const claimed = await requestsApi.updateIfPending(r.id, {
+        status: 'approved', resolvedAt: new Date().toISOString(), resolvedBy: profile.id,
+      });
+      if (!claimed) return;
+      const p = r.payload || {};
+      try {
+        if (r.type === 'add') {
+          let d;
+          if (p.fromTime && p.toTime) d = fromRange(p.date, p.fromTime, p.toTime);
+          else { const dur = Math.round((p.hours || 0) * 3600); const s = Date.parse(p.date + 'T12:00:00Z'); d = { durationSeconds: dur, startMs: s, endMs: s + dur * 1000 }; }
+          await sessionsApi.insert({
+            employeeUid: r.employeeUid,
+            employeeName: p.employeeName,
+            projectId: p.projectId,
+            assignmentId: p.assignmentId,
+            memo: p.reason ? '[Manual] ' + p.reason : '[Time added]',
+            weekOf: weekStartISO(p.date),
+            date: p.date,
+            startMs: d.startMs,
+            endMs: d.endMs,
+            durationSeconds: d.durationSeconds,
+            keystrokes: 0, clicks: 0, activeSeconds: 0,
+            manual: true, source: 'manual', isLive: false,
+          });
+        } else if (r.type === 'adjust') {
+          if (p.fromTime && p.toTime) {
+            const d = fromRange(p.date, p.fromTime, p.toTime);
+            await sessionsApi.update(p.sessionId, { date: p.date, weekOf: weekStartISO(p.date), startMs: d.startMs, endMs: d.endMs, durationSeconds: d.durationSeconds, source: 'adjusted' });
+          } else {
+            await sessionsApi.update(p.sessionId, { durationSeconds: Math.round((p.hours || 0) * 3600), source: 'adjusted' });
+          }
+        } else if (r.type === 'delete') {
+          await sessionsApi.remove(p.sessionId);
         }
-      } else if (r.type === 'delete') {
-        await sessionsApi.remove(p.sessionId);
+        auditApi.log('Request approved', LABEL[r.type] + ' · ' + (p.employeeName || '') + ' · ' + p.date + (p.hours ? ' · ' + p.hours + 'h' : ''));
+      } catch (e) {
+        // Already claimed as approved but applying it failed — put it back to
+        // pending so the request isn't silently lost, then surface the error.
+        await requestsApi.update(r.id, { status: 'pending', resolvedAt: null, resolvedBy: null }).catch(() => {});
+        alert(t('mgr.req.applyFail', { e: e.message || e }));
       }
-      await requestsApi.update(r.id, { status: 'approved', resolvedAt: new Date().toISOString(), resolvedBy: profile.id });
-      auditApi.log('Request approved', LABEL[r.type] + ' · ' + (p.employeeName || '') + ' · ' + p.date + (p.hours ? ' · ' + p.hours + 'h' : ''));
-    } catch (e) {
-      alert(t('mgr.req.applyFail', { e: e.message || e }));
+    } finally {
+      setBusy(r.id, false);
     }
   }
 
   async function reject(r) {
-    const p = r.payload || {};
-    await requestsApi.update(r.id, { status: 'rejected', resolvedAt: new Date().toISOString(), resolvedBy: profile.id });
-    auditApi.log('Request rejected', LABEL[r.type] + ' · ' + (p.employeeName || '') + ' · ' + p.date);
+    if (busyRef.current.has(r.id)) return;
+    setBusy(r.id, true);
+    try {
+      const p = r.payload || {};
+      const claimed = await requestsApi.updateIfPending(r.id, {
+        status: 'rejected', resolvedAt: new Date().toISOString(), resolvedBy: profile.id,
+      });
+      if (!claimed) return;
+      auditApi.log('Request rejected', LABEL[r.type] + ' · ' + (p.employeeName || '') + ' · ' + p.date);
+    } finally {
+      setBusy(r.id, false);
+    }
   }
 
   return (
@@ -89,8 +127,8 @@ export default function ManagerRequests({ profile, requests, projects, assignmen
                   </div>
                 </div>
                 <div className="row">
-                  <button className="btn-ok btn-sm" onClick={() => accept(r)}>{t('mgr.req.accept')}</button>
-                  <button className="btn-danger btn-sm" onClick={() => reject(r)}>{t('mgr.req.reject')}</button>
+                  <button className="btn-ok btn-sm" disabled={busyIds.has(r.id)} onClick={() => accept(r)}>{t('mgr.req.accept')}</button>
+                  <button className="btn-danger btn-sm" disabled={busyIds.has(r.id)} onClick={() => reject(r)}>{t('mgr.req.reject')}</button>
                 </div>
               </div>
             </div>

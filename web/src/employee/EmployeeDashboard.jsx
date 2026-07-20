@@ -73,9 +73,21 @@ export default function EmployeeDashboard({ profile }) {
   // Abandoned-session recovery (the is_live fix): if a previous run closed
   // without finalizing, close out our own live sessions on load. The last 10s
   // tick already persisted duration/end_ms, so we just flip the flag.
+  // Only treat a session as abandoned if its last tick is stale — a session
+  // actively ticking on another device/tab writes endMs every ~10s, so a
+  // recent endMs means it's still genuinely running and must be left alone
+  // (otherwise just opening the web app on a second device while tracking on
+  // desktop would silently drop you from the manager's "working now" view).
   useEffect(() => {
+    const STALE_MS = 45_000; // well past one missed 10s tick, before flagging abandoned
     sessionsApi.listLive(profile.id).then((live) => {
-      live.forEach((s) => { sessionsApi.update(s.id, { isLive: false }).catch(() => {}); });
+      const now = Date.now();
+      live.forEach((s) => {
+        const lastTick = s.endMs || s.startMs || 0;
+        if (now - lastTick > STALE_MS) {
+          sessionsApi.update(s.id, { isLive: false }).catch(() => {});
+        }
+      });
     }).catch(() => {});
   }, [profile.id]);
 
